@@ -1,0 +1,122 @@
+import { config } from "dotenv";
+import Stripe from "stripe";
+import Payment from "../models/Payment.js"; // Adjust path as needed
+config();
+
+export const checkout = async (req, res) => {
+  try {
+    // Initialize Stripe with secret key
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2022-11-15",
+    });
+
+    // Create a Stripe Checkout session
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required." });
+    }
+    
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: "Personalized Credit Insights",
+              description:
+                "Unlock AI-generated strategies for your credit report",
+            },
+            unit_amount: 10000, // $100 in cents
+          },
+          quantity: 1,
+        },
+      ],
+      success_url:
+        "http://localhost:5173/success?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "http://localhost:5173/fail",
+      metadata: {
+        userId: userId || "",
+      },
+    });
+    // Save payment session data to the database
+    await Payment.create({
+      userId,
+      amount: session.amount_total / 100, // Convert cents to dollars
+      method: session.payment_method_types[0],
+      currency: session.currency,
+      paymentIntentId: session.payment_intent,
+      status: session.payment_status,
+      sessionId: session.id,
+    });
+
+    res.status(200).json({ url: session.url, sessionId: session.id });
+  } catch (error) {
+    console.error("Payment processing error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const webhook = async (req, res) => {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: "2020-03-02",
+  });
+
+  try {
+    // Verify the webhook signature
+    const event = stripe.webhooks.constructEvent(
+      req.body,
+      req.headers["stripe-signature"],
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+
+    // Handle the event
+    switch (event.type) {
+      case "checkout.session.completed":
+        const checkoutSessionCompleted = event.data.object;
+        await Payment.findOneAndUpdate(
+          { sessionId: checkoutSessionCompleted.id },
+          {
+            status: checkoutSessionCompleted.payment_status,
+            paymentIntentId: checkoutSessionCompleted.payment_intent,
+          },
+          { new: true }
+        );
+        break;
+      default:
+        console.warn(`Unhandled event type ${event.type}`);
+    }
+
+    res.json({ received: true });
+  } catch (err) {
+    console.error("Webhook error:", err);
+    res.status(400).send(`Webhook Error`);
+  }
+};
+
+export const getPaymentDetails = async (req, res) => {
+  const sessionId = req.query.session_id;
+
+  if (!sessionId) {
+    return res.status(400).json({ error: "Session ID is required" });
+  }
+
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2022-11-15",
+    });
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    res.status(200).json(session);
+  } catch (error) {
+    console.error("Error retrieving payment details:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
