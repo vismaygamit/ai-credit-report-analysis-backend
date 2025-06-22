@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import Stripe from "stripe";
-import Payment from "../models/Payment.js"; // Adjust path as needed
+import Payment from "../models/payment.js"; // Adjust path as needed
 config();
 
 export const checkout = async (req, res) => {

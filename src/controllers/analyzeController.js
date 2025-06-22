@@ -2,7 +2,7 @@ import { config } from "dotenv";
 import fs from "fs";
 import OpenAI from "openai";
 import CreditReport from "../models/report.js";
-import Payment from "../models/Payment.js";
+import Payment from "../models/payment.js";
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 config();
 
