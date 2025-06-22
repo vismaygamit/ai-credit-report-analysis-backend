@@ -7,7 +7,8 @@ const MIME_TYPES = {
 
 const storage = multer.diskStorage({
   destination: (req, file, callback) => {
-    const uploadDir = "uploads/";
+    // const uploadDir = "uploads/";
+    const uploadDir = "tmp/";
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }

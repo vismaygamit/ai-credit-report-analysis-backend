@@ -1,8 +1,6 @@
 import express from "express";
 import { config } from "dotenv";
-import multer from "multer";
 import { connectDatabase } from "./src/config/database.js";
-const upload = multer({ dest: "uploads/" }); // Set up multer for file uploads
 config();
 
 const app = express();
