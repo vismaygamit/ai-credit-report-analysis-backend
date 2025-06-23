@@ -391,7 +391,7 @@ export const analyze = async (req, res) => {
         .json({ error: "No summary generated from the credit report." });
     }
   } catch (error) {
-    console.error("Error in analyze:");
+    console.error("Error in analyze:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
