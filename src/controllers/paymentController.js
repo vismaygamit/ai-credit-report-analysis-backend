@@ -34,8 +34,8 @@ export const checkout = async (req, res) => {
         },
       ],
       success_url:
-        `${FRONT_END_URL}success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${FRONT_END_URL}/fail`,
+        `${process.env.FRONT_END_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONT_END_URL}/fail`,
       metadata: {
         userId: userId || "",
       },
