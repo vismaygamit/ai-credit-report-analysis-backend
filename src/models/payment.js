@@ -6,6 +6,10 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    reportId: {
+      type: String,
+      required: true,
+    },
     amount: {
       type: Number,
       required: true,
@@ -20,7 +24,7 @@ const paymentSchema = new mongoose.Schema(
       required: true,
     },
     paymentIntentId: {
-      type: String
+      type: String,
     },
     status: {
       type: String,

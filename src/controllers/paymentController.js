@@ -11,9 +11,9 @@ export const checkout = async (req, res) => {
     });
 
     // Create a Stripe Checkout session
-    const { userId } = req.body;
-    if (!userId) {
-      return res.status(400).json({ error: "User ID is required." });
+    const { userId, reportId } = req.body;
+    if (!userId || !reportId) {
+      return res.status(400).json({ message: "User ID and report id is required." });
     }
     
     const session = await stripe.checkout.sessions.create({
@@ -38,11 +38,13 @@ export const checkout = async (req, res) => {
       cancel_url: `${process.env.FRONT_END_URL}/fail`,
       metadata: {
         userId: userId || "",
+        reportId: reportId || ""
       },
     });
     // Save payment session data to the database
     await Payment.create({
       userId,
+      reportId,
       amount: session.amount_total / 100, // Convert cents to dollars
       method: session.payment_method_types[0],
       currency: session.currency,
@@ -99,7 +101,7 @@ export const getPaymentDetails = async (req, res) => {
   const sessionId = req.query.session_id;
 
   if (!sessionId) {
-    return res.status(400).json({ error: "Session ID is required" });
+    return res.status(400).json({ message: "Session ID is required" });
   }
 
   try {
@@ -110,13 +112,13 @@ export const getPaymentDetails = async (req, res) => {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
     if (!session) {
-      return res.status(404).json({ error: "Session not found" });
+      return res.status(400).json({ message: "Invlalid Session id" });
     }
 
     res.status(200).json(session);
   } catch (error) {
     console.error("Error retrieving payment details:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
