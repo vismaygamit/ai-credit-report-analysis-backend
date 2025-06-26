@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 import Stripe from "stripe";
 import Payment from "../models/payment.js"; // Adjust path as needed
+import Report from "../models/report.js"; // Adjust path as needed
 config();
 
 export const checkout = async (req, res) => {
@@ -13,9 +14,11 @@ export const checkout = async (req, res) => {
     // Create a Stripe Checkout session
     const { userId, reportId } = req.body;
     if (!userId || !reportId) {
-      return res.status(400).json({ message: "User ID and report id is required." });
+      return res
+        .status(400)
+        .json({ message: "User ID and report id is required." });
     }
-    
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -33,12 +36,11 @@ export const checkout = async (req, res) => {
           quantity: 1,
         },
       ],
-      success_url:
-        `${process.env.FRONT_END_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${process.env.FRONT_END_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONT_END_URL}/fail`,
       metadata: {
         userId: userId || "",
-        reportId: reportId || ""
+        reportId: reportId || "",
       },
     });
     // Save payment session data to the database
@@ -77,6 +79,7 @@ export const webhook = async (req, res) => {
     switch (event.type) {
       case "checkout.session.completed":
         const checkoutSessionCompleted = event.data.object;
+       
         await Payment.findOneAndUpdate(
           { sessionId: checkoutSessionCompleted.id },
           {
@@ -85,6 +88,15 @@ export const webhook = async (req, res) => {
           },
           { new: true }
         );
+
+        // Update the report status to 'paid'
+        if (checkoutSessionCompleted.payment_status === "paid") {
+          await Report.findOneAndUpdate(
+            { _id: checkoutSessionCompleted.metadata.reportId },
+            { userId: checkoutSessionCompleted.metadata.userId },
+            { new: true }
+          );
+        }
         break;
       default:
         console.warn(`Unhandled event type ${event.type}`);
@@ -121,4 +133,3 @@ export const getPaymentDetails = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-

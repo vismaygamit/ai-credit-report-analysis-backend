@@ -9,26 +9,6 @@ config();
 
 export const analyze = async (req, res) => {
   try {
-    const languageHeader = req.headers["accept-language"];
-    let fullLanguage = "english";
-
-    const lang = languageHeader.toLowerCase();
-    if (languageHeader) {
-      if (lang.startsWith("ru")) {
-        fullLanguage = "russian";
-      } else if (lang.startsWith("uk")) {
-        fullLanguage = "ukrainian";
-      } else if (lang.startsWith("es")) {
-        fullLanguage = "spanish";
-      } else if (lang.startsWith("fr")) {
-        fullLanguage = "french";
-      } else if (lang.startsWith("ar")) {
-        fullLanguage = "arabic";
-      } else if (lang.startsWith("hi")) {
-        fullLanguage = "hindi";
-      }
-    }
-
     if (!req.file || !req.file.path) {
       return res.status(400).json({ message: "Please select a file." });
     }
@@ -146,7 +126,7 @@ export const analyze = async (req, res) => {
             },
             {
               type: "text",
-              text: `I’ve uploaded my Canadian credit report in PDF format. Please extract and analyze the following:\n\n• My credit score\n• All account types: revolving, installment, mortgage, and open\n• Details of each account: opening dates, current balances, and credit limits\n• Monthly payment history for the last 24 months\n• Status codes like R1, R2, I2, etc.\n• Credit inquiries: hard and soft, with dates\n• Any public records: bankruptcies, collections, judgments\n• Any missed or delinquent payments\n• Details of installment loans\n• Any employment or personal information, if available\n\nUse text extraction or OCR to capture this data from the uploaded PDF. Then generate a plain-language summary, identify concerns, and provide a 3-month action plan to improve my credit health. in ${fullLanguage}`,
+              text: `I’ve uploaded my Canadian credit report in PDF format. Please extract and analyze the following:\n\n• My credit score\n• All account types: revolving, installment, mortgage, and open\n• Details of each account: opening dates, current balances, and credit limits\n• Monthly payment history for the last 24 months\n• Status codes like R1, R2, I2, etc.\n• Credit inquiries: hard and soft, with dates\n• Any public records: bankruptcies, collections, judgments\n• Any missed or delinquent payments\n• Details of installment loans\n• Any employment or personal information, if available\n\nUse text extraction or OCR to capture this data from the uploaded PDF. Then generate a plain-language summary, identify concerns, and provide a 3-month action plan to improve my credit health.`,
             },
           ],
         },
@@ -166,14 +146,13 @@ export const analyze = async (req, res) => {
           message: "Credit report is empty or the uploaded file is invalid.",
         });
       }
-      if (userId) {
+      // if (userId) {
         const updateFields = {
           userId: userId,
           creditScore: args.creditScore || [],
           factorAnalysis: args.factorAnalysis || [],
           actionPlan: args.actionPlan || [],
-          delinquencyStatus: args.delinquencyStatus || "",
-          reportLanguage: lang,
+          delinquencyStatus: args.delinquencyStatus || ""
         };
 
         // Remove undefined fields to avoid overwriting with undefined
@@ -191,13 +170,6 @@ export const analyze = async (req, res) => {
           ispro: isPro,
           result: report ? report : {},
         });
-      } else {
-        return res.status(200).json({
-          count: Object.keys(args).length,
-          ispro: isPro,
-          result: args,
-        });
-      }
     } else {
       console.log("⚠️ No tool call returned.");
       return res.status(404).json({

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 const CreditReportSchema = new mongoose.Schema(
   {
-    userId: { type: String, required: true },
+    userId: { type: String },
     creditScore: [{ type: String }],
     factorAnalysis: [
       {
