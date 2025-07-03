@@ -202,7 +202,7 @@ export const analyze = async (req, res) => {
                   },
                   goodwillScript: {
                     type: "string",
-                    description: "it must be goodwill removal Script Letter",
+                    description: "it must be goodwill removal Script Letter in format",
                   },
                 },
               },
