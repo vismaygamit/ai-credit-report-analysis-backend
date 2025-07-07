@@ -1,4 +1,13 @@
 import mongoose from "mongoose";
+
+const checklistItemSchema = new mongoose.Schema(
+  {
+    desc: { type: String },
+    istrue: { type: Boolean },
+  },
+  { _id: false }
+);
+
 const CreditReportSchema = new mongoose.Schema(
   {
     userId: { type: String },
@@ -17,8 +26,40 @@ const CreditReportSchema = new mongoose.Schema(
       },
       inquiries: {
         total: String,
-        hard: [{ type: mongoose.Schema.Types.Mixed }],
-        soft: [{ type: mongoose.Schema.Types.Mixed }],
+        hard: [
+          {
+            _id: false,
+            date: {
+              type: String,
+            },
+            lender: {
+              type: String,
+            },
+            type: {
+              type: String,
+            },
+            affectsScore: {
+              type: Boolean,
+            },
+          },
+        ],
+        soft: [
+          {
+            _id: false,
+            date: {
+              type: String,
+            },
+            lender: {
+              type: String,
+            },
+            type: {
+              type: String,
+            },
+            affectsScore: {
+              type: Boolean,
+            },
+          },
+        ],
       },
       collections: Number,
       judgments: Number,
@@ -45,23 +86,6 @@ const CreditReportSchema = new mongoose.Schema(
         status: { type: String },
         closed: { type: Boolean },
         pastDue: { type: Number },
-      },
-    ],
-    inquiries: [
-      {
-        _id: false,
-        date: {
-          type: String,
-        },
-        lender: {
-          type: String,
-        },
-        type: {
-          type: String,
-        },
-        affectsScore: {
-          type: Boolean,
-        },
       },
     ],
     publicRecords: {
@@ -108,23 +132,18 @@ const CreditReportSchema = new mongoose.Schema(
     },
     scoreProgress: {
       creditSummary: {
-        asOf: { type: String },
-        score: { type: Number },
-        utilization: { type: String },
         onTimePayments: { type: String },
         activeAccounts: { type: Number },
-        hardInquiries: { type: Number },
-        softInquiries: { type: String },
         derogatoryMarks: { type: Number },
       },
       scoreSimulator: [{ type: mongoose.Schema.Types.Mixed }],
       target: { type: String },
       checklist: {
-        payCTB1: { type: Boolean },
-        keepCIBCOpen: { type: Boolean },
-        requestCLI: { type: Boolean },
-        reportRent: { type: Boolean },
-        avoidApplications: { type: Boolean },
+        payCTB1: checklistItemSchema,
+        keepCIBCOpen: checklistItemSchema,
+        requestCLI: checklistItemSchema,
+        reportRent: checklistItemSchema,
+        avoidApplications: checklistItemSchema,
       },
       forecastChart: {
         dataPoints: [{ type: mongoose.Schema.Types.Mixed }],
