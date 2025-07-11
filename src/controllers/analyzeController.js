@@ -68,6 +68,11 @@ export const analyze = async (req, res) => {
           parameters: {
             type: "object",
             properties: {
+              emptyResponse: {
+                type: "boolean",
+                description:
+                  "Set to true if the input credit report has no data or is empty.",
+              },
               summary: {
                 type: "object",
                 properties: {
@@ -249,7 +254,11 @@ export const analyze = async (req, res) => {
                   goodwillScript: {
                     type: "string",
                     description:
-                      "Generate a goodwill letter asking a creditor to remove a late payment from my report, as the account is now paid or in good standing.",
+                      "Generate a goodwill letter only for the most problematic account of one or more past due delinquencies (late payments) from the credit report." +
+                      "This letter should be triggered if the account has documented delinquencies (e.g., 30, 60, 90 days late), or if the account is marked as written-off (I9 status), " +
+                      "even if it is not currently in good standing. For I9 accounts, the letter should acknowledge past financial hardship and request leniency as a gesture of goodwill. " +
+                      "Include the account type, account ending digits, dates of delinquencies, and a brief explanation of improved financial behavior. " +
+                      "Do not trigger this for accounts with no delinquencies. This tool is intended to support creditor goodwill requests across all credit types, including installment, revolving, and mortgage accounts.",
                   },
                 },
               },
@@ -364,6 +373,7 @@ export const analyze = async (req, res) => {
               },
             },
             required: [
+              "emptyResponse",
               "summary",
               "accountsAndBalances",
               "inquiries",
@@ -387,13 +397,12 @@ export const analyze = async (req, res) => {
         {
           role: "system",
           content:
-            "You are a financial assistant that summarizes Canadian credit report. 1. Extract the following information from the provided credit report and present it in a structured, fixed format: Score, tradelines, payment history, inquiries, collections, judgments, credit utilization, and credit age. 2. Extract structured data from the provided PDF, including: balance, limits, open/closed dates for all accounts; payment timestamps and past dues; account types (revolving, installment, open, mortgage); inquiry dates, lenders, and types; collection dates, agencies, and statuses; and public records such as bankruptcies, liens, and judgments. 3. Evaluate the credit report data based on the following criteria: total utilization vs. optimal levels, credit mix, payment history strength, delinquency aging & severity, inquiry frequency and timing, presence and age of derogatory marks, and whether it's a thin file vs. seasoned file. 4. Provide a 'Score Forecast Engine' that estimates projected score increases based on user actions like paying down specific cards, asking for credit limit increases, removing old collections, reporting rent/utilities, and avoiding hard inquiries. The output should show the score impact, timeline for effect, priority of actions, and confidence level of the forecast, all in a fixed format. 5. Generate an 'AI Action Plan Generator' providing personalized, actionable items based on the credit report data. The plan should include recommendations for: paying down specific cards, adding a rent tradeline, asking the bank for a credit limit increase, avoiding credit applications, and keeping old accounts open, presented in a fixed format with specific recommendations, priority, and timeline for each. 6. Generate a 'Dispute & Removal Toolkit' including templates for a dispute letter and a goodwill removal script. These templates should be personalized with my credit report information (name, address, relevant account numbers, and specific details for a potential secured loan maturity date dispute) and presented in a fixed format. For the goodwill script, assume a hypothetical past missed payment for Canadian Tire Bank. 7. Provide a 'Score Progress Tracker' output that includes a full credit summary, score simulation, action checklist, forecast chart, and dispute & goodwill letters, presented in a fixed format." +
+            "You are a financial assistant that summarizes Canadian credit report. 1. Extract the following information from the provided credit report and present it in a structured, fixed format: Score, tradelines, payment history, inquiries, collections, judgments, credit utilization, and credit age. 2. Extract structured data from the provided PDF, including: balance, limits, open/closed dates for all accounts; payment timestamps and past dues; account types (revolving, installment, open, mortgage); inquiry dates, lenders, and types; collection dates, agencies, and statuses; and public records such as bankruptcies, liens, and judgments. 3. Evaluate the credit report data based on the following criteria: total utilization vs. optimal levels, credit mix, payment history strength, delinquency aging & severity, inquiry frequency and timing, presence and age of derogatory marks, and whether it's a thin file vs. seasoned file. 4. Provide a 'Score Forecast Engine' that estimates projected score increases based on user actions like paying down specific cards, asking for credit limit increases, removing old collections, reporting rent/utilities, and avoiding hard inquiries. The output should show the score impact, timeline for effect, priority of actions, and confidence level of the forecast, all in a fixed format. 5. Generate an 'AI Action Plan Generator' providing personalized, actionable items based on the credit report data. The plan should include recommendations for: paying down specific cards, adding a rent tradeline, asking the bank for a credit limit increase, avoiding credit applications, and keeping old accounts open, presented in a fixed format with specific recommendations, priority, and timeline for each. 6. Generate a 'Dispute & Removal Toolkit' including templates for a dispute letter and a goodwill removal script. These templates should be personalized with my credit report information (name, address, relevant account numbers, and specific details for a potential secured loan maturity date dispute) and presented in a fixed format. 7. Provide a 'Score Progress Tracker' output that includes a full credit summary, score simulation, action checklist, forecast chart, and dispute & goodwill letters, presented in a fixed format." +
             "8. Create an 'AI Reminder & Re-Evaluation Engine' that suggests when credit updates are likely to appear, reminds the user to re-check their score, and proposes a timeline for re-analysis, all in a fixed format.",
         },
         {
           role: "user",
           content: `Please analyze and respond Extract from the following section:\n\n${fullText}.`,
-
           // content: [
           //   {
           //     type: "file",
@@ -410,16 +419,16 @@ export const analyze = async (req, res) => {
       ],
       tools,
     });
-
-    if (isToolCallEmpty(response)) {
+      const toolCall1 = response.choices[0].message.tool_calls?.[0];
+      const args = JSON.parse(toolCall1.function.arguments);
+      
+    if (isToolCallEmpty(response) || args?.emptyResponse === true) {
       console.log("⚠️ Credit report is empty or invalid file.");
       return res.status(404).json({
         message: "Credit report is empty or the uploaded file is invalid.",
       });
     } else {
       // Parse the tool call arguments from the OpenAI response
-      const toolCall1 = response.choices[0].message.tool_calls?.[0];
-      const args = JSON.parse(toolCall1.function.arguments);
       const updateFields = {
         userId,
         summary: args.summary ?? {},
