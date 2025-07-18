@@ -6,18 +6,20 @@ config();
 
 export const checkout = async (req, res) => {
   try {
-    // Initialize Stripe with secret key
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2022-11-15",
-    });
-
+    const { userId } = req.auth;
     // Create a Stripe Checkout session
-    const { userId, reportId } = req.body;
+    const { reportId } = req.body;
     if (!userId || !reportId) {
       return res
         .status(400)
         .json({ message: "User ID and report id is required." });
     }
+
+    // Initialize Stripe with secret key
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: "2022-11-15",
+    });
+
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -129,7 +131,7 @@ export const getPaymentDetails = async (req, res) => {
 
     res.status(200).json(session);
   } catch (error) {
-    console.error("Error retrieving payment details:", error);
+    // console.error("Error retrieving payment details:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

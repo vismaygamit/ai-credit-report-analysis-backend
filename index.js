@@ -2,20 +2,13 @@ import express from "express";
 import { config } from "dotenv";
 import { File } from 'node:buffer';
 import { connectDatabase } from "./src/config/database.js";
+import { clerkMiddleware } from '@clerk/express'
 config();
 
 const app = express();
 globalThis.File = File;
 connectDatabase();
-
-// app.use(
-//   express.json({
-//     // store the raw request body to use it for signature verification
-//     verify: (req, buf, encoding) => {
-//       req.rawBody = buf?.toString(encoding || "utf8");
-//     },
-//   })
-// );
+app.use(clerkMiddleware())
 
 // Enable CORS
 app.use((req, res, next) => {

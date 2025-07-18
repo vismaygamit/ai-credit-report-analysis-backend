@@ -11,6 +11,7 @@ const checklistItemSchema = new mongoose.Schema(
 const CreditReportSchema = new mongoose.Schema(
   {
     userId: { type: String },
+    isEmailSent: { type: Boolean, default: false },
     summary: {
       score: Number,
       rating: String,
