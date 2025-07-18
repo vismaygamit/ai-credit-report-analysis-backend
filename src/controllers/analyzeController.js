@@ -560,7 +560,9 @@ export const transLate = async (req, res) => {
     return res.status(400).json({ message: "Invalid request" });
   }
   const { object, targetLanguage } = req.body;
-
+  const report = await CreditReport.findById(object?._id).select('isEmailSent');
+  object.isEmailSent = report?.isEmailSent;
+  
   const prompt = `Translate this JSON to ${targetLanguage}:\n\n${JSON.stringify(
     object,
     null,
