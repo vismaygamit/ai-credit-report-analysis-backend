@@ -33,7 +33,7 @@ export const checkout = async (req, res) => {
               description:
                 "Unlock AI-generated strategies for your credit report",
             },
-            unit_amount: 10000, // $100 in cents
+            unit_amount: 2500, // $100 in cents
           },
           quantity: 1,
         },
