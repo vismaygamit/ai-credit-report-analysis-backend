@@ -560,9 +560,9 @@ export const transLate = async (req, res) => {
     return res.status(400).json({ message: "Invalid request" });
   }
   const { object, targetLanguage } = req.body;
-  const report = await CreditReport.findById(object?._id).select('isEmailSent');
+  const report = await CreditReport.findById(object?._id).select("isEmailSent");
   object.isEmailSent = report?.isEmailSent;
-  
+
   const prompt = `Translate this JSON to ${targetLanguage}:\n\n${JSON.stringify(
     object,
     null,
@@ -584,14 +584,8 @@ Return only valid JSON with no explanation, no code block, no formatting. Do **n
       .replace(/^```(json)?/, "")
       .replace(/```$/, "")
       .trim();
-    let translatedObject;
-    try {
-      translatedObject = JSON.parse(cleaned);
-      return res.status(200).json({ translated: translatedObject });
-    } catch (parseErr) {
-      console.warn("JSON parse error:", parseErr.message);
-      return res.status(200).json({ raw: translatedText });
-    }
+    const translatedObject = JSON.parse(cleaned);
+    return res.status(200).json({ translated: translatedObject });
   } catch (err) {
     console.error("Translation failed:", err);
     res.status(500).json({ message: "Translation failed" });
@@ -603,7 +597,7 @@ export const sendReport = async (req, res) => {
     const { userId } = req.auth;
     const { reportId } = req.body;
     const user = await clerkClient.users.getUser(userId);
-    
+
     const toEmail = user?.emailAddresses[0]?.emailAddress;
     if (!userId || !toEmail || !reportId) {
       return res.status(400).json({ message: "Invalid request" });
@@ -659,7 +653,7 @@ export const sendReceipt = async (req, res) => {
   try {
     const { userId } = req.auth;
     const user = await clerkClient.users.getUser(userId);
-    
+
     const toEmail = user?.emailAddresses[0]?.emailAddress;
     if (!userId || !toEmail) {
       return res.status(400).json({ message: "Invalid request" });
