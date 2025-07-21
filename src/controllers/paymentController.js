@@ -27,13 +27,14 @@ export const checkout = async (req, res) => {
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency: "cad",
             product_data: {
               name: "Personalized Credit Insights",
               description:
                 "Unlock AI-generated strategies for your credit report",
             },
-            unit_amount: 2500, // $100 in cents
+            unit_amount: 2500, // $25 in cents
+            //  unit_amount: 100, // $1.00 in cents
           },
           quantity: 1,
         },
