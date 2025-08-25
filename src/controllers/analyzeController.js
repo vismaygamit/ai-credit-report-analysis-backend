@@ -43,7 +43,7 @@ export const analyze = async (req, res) => {
     if (!userId) {
       return res.status(400).json({ message: "Invalid request" });
     }
-
+    const lang = req.get("Accept-Language");
     if (!req.file || !req.file.path) {
       return res.status(400).json({ message: "Please select a file." });
     }
@@ -406,11 +406,11 @@ export const analyze = async (req, res) => {
           role: "system",
           content:
             "You are a financial assistant that summarizes Canadian credit report. 1. Extract the following information from the provided credit report and present it in a structured, fixed format: Score, tradelines, payment history, inquiries, collections, judgments, credit utilization, and credit age. 2. Extract structured data from the provided PDF, including: balance, limits, open/closed dates for all accounts; payment timestamps and past dues; account types (revolving, installment, open, mortgage); inquiry dates, lenders, and types; collection dates, agencies, and statuses; and public records such as bankruptcies, liens, and judgments. 3. Evaluate the credit report data based on the following criteria: total utilization vs. optimal levels, credit mix, payment history strength, delinquency aging & severity, inquiry frequency and timing, presence and age of derogatory marks, and whether it's a thin file vs. seasoned file. 4. Provide a 'Score Forecast Engine' that estimates projected score increases based on user actions like paying down specific cards, asking for credit limit increases, removing old collections, reporting rent/utilities, and avoiding hard inquiries. The output should show the score impact, timeline for effect, priority of actions, and confidence level of the forecast, all in a fixed format. 5. Generate an 'AI Action Plan Generator' providing personalized, actionable items based on the credit report data. The plan should include recommendations for: paying down specific cards, adding a rent tradeline, asking the bank for a credit limit increase, avoiding credit applications, and keeping old accounts open, presented in a fixed format with specific recommendations, priority, and timeline for each. 6. Generate a 'Dispute & Removal Toolkit' including templates for a dispute letter and a goodwill removal script. These templates should be personalized with my credit report information (name, address, relevant account numbers, and specific details for a potential secured loan maturity date dispute) and presented in a fixed format. 7. Provide a 'Score Progress Tracker' output that includes a full credit summary, score simulation, action checklist, forecast chart, and dispute & goodwill letters, presented in a fixed format." +
-            "8. Create an 'AI Reminder & Re-Evaluation Engine' that suggests when credit updates are likely to appear, reminds the user to re-check their score, and proposes a timeline for re-analysis, all in a fixed format.",
+            "8. Create an 'AI Reminder & Re-Evaluation Engine' that suggests when credit updates are likely to appear, reminds the user to re-check their score, and proposes a timeline for re-analysis, all in a fixed format. Do **not** translate disputeLetter and goodwillScript.",
         },
         {
           role: "user",
-          content: `Please analyze and respond Extract from the following section:\n\n${fullText}.`,
+          content: `Please analyze and respond Extract from the following section:\n\n${fullText}. output language should be ${lang} language.`,
           // content: [
           //   {
           //     type: "file",
@@ -450,6 +450,7 @@ export const analyze = async (req, res) => {
         scoreForecast: Array.isArray(args.scoreForecast)
           ? args.scoreForecast
           : [],
+        preferLanguage: lang,
         actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
         disputeToolkit: args.disputeToolkit ?? {},
         scoreProgress: args.scoreProgress ?? {},
@@ -532,22 +533,56 @@ export const getCreditReport = async (req, res) => {
 
     let isPro;
     if (report?._id) {
+      const prompt = `Translate this JSON to ${
+        report.preferLanguage
+      }:\n\n${JSON.stringify(
+        report,
+        null,
+        2
+      )}\n\nOnly translate the **string values**. Do **not** change any keys or structure. 
+Return only valid JSON with no explanation, no code block, no formatting. Do **not** translate disputeLetter and goodwillScript
+.`;
+
+      const completion = await client.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+      });
+
+      const translatedText = completion.choices[0].message.content;
+
+      const cleaned = translatedText
+        .replace(/^```(json)?/, "")
+        .replace(/```$/, "")
+        .trim();
+      const translatedObject = JSON.parse(cleaned);
+
       const payment = await Payment.findOne({
         reportId: report._id,
         status: "paid",
       });
       isPro = !!payment;
+      return res.status(200).json({
+        count: translatedObject
+          ? Object.keys(
+              translatedObject.toObject
+                ? translatedObject.toObject()
+                : translatedObject
+            ).length
+          : 0,
+        ispro: isPro,
+        result: translatedObject || {},
+      });
     } else {
       isPro = false;
+      return res.status(200).json({
+        count: report
+          ? Object.keys(report.toObject ? report.toObject() : report).length
+          : 0,
+        ispro: isPro,
+        result: report || {},
+      });
     }
-
-    return res.status(200).json({
-      count: report
-        ? Object.keys(report.toObject ? report.toObject() : report).length
-        : 0,
-      ispro: isPro,
-      result: report || {},
-    });
   } catch (error) {
     console.error("Error fetching credit report:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -561,6 +596,11 @@ export const transLate = async (req, res) => {
   }
   const { object, targetLanguage } = req.body;
   const report = await CreditReport.findById(object?._id).select("isEmailSent");
+  const updatedUser = await CreditReport.findByIdAndUpdate(
+    object?._id,
+    { targetLanguage },
+    { new: true, runValidators: true }
+  );
   object.isEmailSent = report?.isEmailSent;
 
   const prompt = `Translate this JSON to ${targetLanguage}:\n\n${JSON.stringify(
@@ -695,5 +735,53 @@ Scorewise
   } catch (error) {
     console.error("Failed to send email:", error);
     res.status(500).json({ error: "Failed to send email" });
+  }
+};
+
+export const getUserLanguage = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User id is required." });
+    }
+
+    const result = await CreditReport.findOne({ userId: userId })
+      .select("preferLanguage")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({ preferLanguage: result.preferLanguage });
+  } catch (error) {
+    console.error("Error fetching user language:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateUserLanguage = async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    const { lang } = req.params;
+
+    if (!userId || !lang) {
+      return res.status(400).json({ message: "Invalid request" });
+    }
+
+    const updatedReport = await CreditReport.findOneAndUpdate(
+      { userId: userId },
+      {
+        preferLanguage: lang,
+      },
+      { new: true }
+    ).sort({ createdAt: -1 });
+
+    if (!updatedReport) {
+      return res.status(404).json({ message: "Language not found" });
+    }
+
+    return res.status(200).json({ message: "Language updated", lang });
+  } catch (error) {
+    console.error("Error updating user language:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

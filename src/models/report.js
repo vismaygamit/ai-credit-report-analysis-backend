@@ -12,6 +12,7 @@ const CreditReportSchema = new mongoose.Schema(
   {
     userId: { type: String },
     isEmailSent: { type: Boolean, default: false },
+    preferLanguage: { type: String, default: "en" },
     summary: {
       score: Number,
       rating: String,

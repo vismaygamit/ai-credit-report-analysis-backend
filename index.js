@@ -1,5 +1,6 @@
 import express from "express";
 import { config } from "dotenv";
+import cors from "cors";
 import { File } from 'node:buffer';
 import { connectDatabase } from "./src/config/database.js";
 import { clerkMiddleware } from '@clerk/express'
@@ -11,18 +12,13 @@ connectDatabase();
 app.use(clerkMiddleware())
 
 // Enable CORS
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PATCH, PUT, DELETE, OPTIONS"
-  );
-  next();
-});
+
+// Allow requests from your frontend
+app.use(cors({
+  origin: "http://localhost:5173", // or your frontend URL
+  methods: ["GET", "POST", "PATCH", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
 import paymentRoute from "./src/routes/paymentRoute.js";
 app.use("/api", paymentRoute);
