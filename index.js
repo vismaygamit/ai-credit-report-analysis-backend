@@ -15,7 +15,7 @@ app.use(clerkMiddleware())
 
 // Allow requests from your frontend
 app.use(cors({
-  origin: "http://localhost:5173", // or your frontend URL
+  origin: process.env.FRONT_END_URL, // or your frontend URL
   methods: ["GET", "POST", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
