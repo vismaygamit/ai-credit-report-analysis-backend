@@ -751,7 +751,7 @@ export const getUserLanguage = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    return res.status(200).json({ preferLanguage: result.preferLanguage });
+    return res.status(200).json({ preferLanguage: result?.preferLanguage || "en" });
   } catch (error) {
     console.error("Error fetching user language:", error);
     return res.status(500).json({ message: "Internal server error" });
