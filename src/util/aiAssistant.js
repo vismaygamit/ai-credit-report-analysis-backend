@@ -63,10 +63,6 @@ export default async function handleUserMessage(userId, query) {
               },
             ],
           });
-          console.log(
-            "followup.choices[0].message.content",
-            followup.choices[0].message.content
-          );
           const finalResponse = followup.choices[0].message.content;
           io.to(userId).emit("message", finalResponse);
           return finalResponse;
@@ -77,8 +73,6 @@ export default async function handleUserMessage(userId, query) {
     io.to(userId).emit("message", responseMessage.content);
     return responseMessage.content;
   } catch (err) {
-    console.log(err);
-
     console.error("OpenAI error:", err.message);
     // return "Sorry, I’m having trouble right now 😔.";
   }
