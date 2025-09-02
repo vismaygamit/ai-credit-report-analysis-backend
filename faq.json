@@ -1,0 +1,82 @@
+[
+  {
+    "question": "What is Scorewise?",
+    "answer": "Scorewise is a Canadian credit wellness platform that analyzes your credit report and provides personalized strategies to help you improve your credit score."
+  },
+  {
+    "question": "How does it work?",
+    "answer": "1. Download your free credit report with score from Equifax.ca. 2. Upload your report securely to Scorewise. 3. Receive a preview analysis, then purchase the full plan to get step-by-step improvement strategies, personalized letters, and AI support."
+  },
+  {
+    "question": "Is my credit report safe?",
+    "answer": "Yes. Your credit report is never stored. It is automatically deleted after analysis. All processing is handled by our system with no human viewing."
+  },
+  {
+    "question": "Do I have to pay to see my analysis?",
+    "answer": "You’ll get a free preview of your credit analysis after uploading your report. To unlock your full improvement plan and personalized tools, you can purchase the complete service."
+  },
+  {
+    "question": "Can Scorewise improve my credit score quickly?",
+    "answer": "Yes, many users see results within weeks. The platform provides actionable steps such as dispute letters, pay-to-delete templates, and tailored recommendations."
+  },
+  {
+    "question": "Which credit bureau reports can I upload?",
+    "answer": "Currently, Scorewise works with Equifax Canada credit reports. Support for other bureaus may be added in the future."
+  },
+  {
+    "question": "Will anyone see my personal information?",
+    "answer": "No. The process is fully automated. No human will view your report or personal details."
+  },
+  {
+    "question": "Do I need a subscription?",
+    "answer": "No subscription is required. You only pay when you choose to unlock your full credit improvement plan."
+  },
+  {
+    "question": "Who uses Scorewise?",
+    "answer": "Thousands of Canadians have already used Scorewise to analyze their credit reports and successfully improve their scores."
+  },
+  {
+    "question": "What kind of support do I get after purchasing?",
+    "answer": "Along with your personalized plan, you’ll receive AI assistant support to guide you through your credit improvement journey."
+  },
+  {
+    "question": "Who is Scorewise?",
+    "answer": "Scorewise is a Canadian credit wellness platform. Our tools analyze credit reports submitted by users to provide insights and improvement strategies."
+  },
+  {
+    "question": "What information do you collect?",
+    "answer": "We collect uploaded credit reports (PDF format from Equifax or TransUnion), device, browser, and language metadata, and user interactions for session-based analysis only. We do not collect your name, SIN, banking, or address details unless they are explicitly provided in the uploaded document."
+  },
+  {
+    "question": "How is my data used?",
+    "answer": "Your credit report is analyzed using AI to: 1) display a preview of problematic items, 2) generate improvement letters and strategies (upon purchase), and 3) offer tailored insights. The entire process is fully automated with no human viewing."
+  },
+  {
+    "question": "How long do you keep my data?",
+    "answer": "Uploaded files are automatically deleted within minutes after analysis. No copies are retained beyond the session."
+  },
+  {
+    "question": "What security measures are in place?",
+    "answer": "We use SSL encryption for all file transfers. Processing takes place only on secure Canadian servers. No tracking scripts or marketing pixels are embedded."
+  },
+  {
+    "question": "How does Scorewise comply with Canadian law?",
+    "answer": "Scorewise complies with PIPEDA (Personal Information Protection and Electronic Documents Act) and CASL (Canada’s Anti-Spam Legislation). Our service is available exclusively to Canadian users."
+  },
+  {
+    "question": "What languages do you support?",
+    "answer": "We support English, French, Spanish, Arabic, Russian, Hindi, and Ukrainian. However, this Privacy Policy is legally binding in English only."
+  },
+  {
+    "question": "What rights do I have regarding my data?",
+    "answer": "You may contact us anytime to request deletion of your report (if still on our server) or to access a session-based summary of the data processed. Contact us at privacy@scorewise.ca."
+  },
+  {
+    "question": "How will I know if this policy changes?",
+    "answer": "We will post any future changes to this Privacy Policy directly on this page. Continued use of our service means you accept the latest terms."
+  },
+  {
+    "question": "How can I contact Scorewise?",
+    "answer": "You can reach us by email at privacy@scorewise.ca or through our website at https://www.scorewise.ca."
+  }
+]
