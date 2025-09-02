@@ -751,7 +751,9 @@ export const getUserLanguage = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    return res.status(200).json({ preferLanguage: result?.preferLanguage || "en" });
+    return res
+      .status(200)
+      .json({ preferLanguage: result?.preferLanguage || "en" });
   } catch (error) {
     console.error("Error fetching user language:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -783,5 +785,63 @@ export const updateUserLanguage = async (req, res) => {
   } catch (error) {
     console.error("Error updating user language:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getCreditReportForBot = async (userId, preferLanguage) => {
+  try {
+    if (!userId) {
+      throw new Error("User id is required.");
+    }
+
+    const report = await CreditReport.findOne({ userId }).sort({
+      createdAt: -1,
+    });
+
+    let isPro = false;
+    if (report?._id) {
+      const prompt = `Translate this JSON to ${preferLanguage}:\n\n${JSON.stringify(
+        report,
+        null,
+        2
+      )}\n\nOnly translate the **string values**. 
+Do **not** change any keys or structure. Return only valid JSON with no explanation, no code block, no formatting. 
+Do **not** translate disputeLetter and goodwillScript.`;
+
+      const completion = await client.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+      });
+
+      const translatedText = completion.choices[0].message.content;
+
+      const cleaned = translatedText
+        .replace(/^```(json)?/, "")
+        .replace(/```$/, "")
+        .trim();
+
+      const translatedObject = JSON.parse(cleaned);
+
+      const payment = await Payment.findOne({
+        reportId: report._id,
+        status: "paid",
+      });
+
+      isPro = !!payment;
+
+      return {
+        ispro: isPro,
+        result: translatedObject || {},
+      };
+    } else {
+      return {
+        ispro: false,
+        result: report || {},
+      };
+    }
+  } catch (error) {
+    console.error("Error fetching credit report:", error);
+    throw new Error("Internal server error");
   }
 };

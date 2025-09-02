@@ -46,8 +46,8 @@ io.use(async (socket, next) => {
 
 io.on("connection", (socket) => {
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
-  socket.on("message", async (data) => {
-    await handleUserMessage(socket.userId, data);
+  socket.on("message", async (data, preferLanguage) => {
+    await handleUserMessage(socket.userId, data, preferLanguage);
   });
 
   socket.on("disconnect", () => {
