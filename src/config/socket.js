@@ -17,35 +17,26 @@ const io = new Server(server, {
 });
 
 const userSocketMap = {}; // this map stores socket id corresponding the user id; userId -> socketId
-// middleware to verify JWT
 io.use(async (socket, next) => {
-  const token =
-    socket.handshake.auth.token ||
-    socket.handshake.query?.token ||
-    socket.handshake.headers?.authorization?.replace("Bearer ", "");
-  if (!token) {
-    console.error("Authorization token required");
-    return next(new Error("Authentication error: token missing"));
+  const uid =
+    socket.handshake.auth.uid;
+    if (!uid) {
+    console.error("RoomId is required");
+    return next(new Error("RoomId is required"));
   }
 
   try {
-    const { sub: userId } = await verifyToken(token, {
-      secretKey: process.env.CLERK_SECRET_KEY,
-    });
-
-    socket.userId = userId;
-    socket.join(userId);
-
-    userSocketMap[userId] = socket.id;
+    socket.userId = uid;
+    socket.join(uid);
+    userSocketMap[uid] = socket.id;
     next();
   } catch (err) {
-    console.error(err);
+    console.error("err", err);
     next(new Error("Authentication error: invalid token"));
   }
 });
 
-io.on("connection", (socket) => {
-  io.emit("getOnlineUsers", Object.keys(userSocketMap));
+io.on("connection", async (socket) => {
   socket.on("message", async (data, preferLanguage) => {
     await handleUserMessage(socket.userId, data, preferLanguage);
   });
