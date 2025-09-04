@@ -108,7 +108,7 @@ export default async function handleUserMessage(userId, query, preferLanguage) {
             }
             return await sendFollowup(
               toolCall,
-              "Purchase required for personal insights."
+              "Purchase required for personal insights., Unlock personalized insights for $25."
             );
           }
         }

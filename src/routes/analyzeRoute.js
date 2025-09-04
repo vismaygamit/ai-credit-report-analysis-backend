@@ -1,11 +1,12 @@
 import express from "express";
-import { analyze, getCreditReport, getUserLanguage, sendReceipt, sendReport, transLate, updateUserLanguage } from "../controllers/analyzeController.js";
+import { analyze, getCreditReport, getUserLanguage, isUserPremium, sendReceipt, sendReport, transLate, updateUserLanguage } from "../controllers/analyzeController.js";
 import upload from "../middleware/file.js";
 import { requireAuth } from '@clerk/express';
 
 const router = express.Router();
 
 router.post("/analyze", requireAuth(), upload.single('file'), analyze);
+router.get("/isUserPremium/:userId", isUserPremium);
 router.get("/report/:userId", getCreditReport);
 router.post("/translate", requireAuth(), transLate);
 router.get("/getuserlanguage/:userId", getUserLanguage);

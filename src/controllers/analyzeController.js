@@ -520,6 +520,39 @@ function isToolCallEmpty(response) {
   }
 }
 
+export const isUserPremium = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ message: "Invalid request" });
+    }
+
+    const report = await CreditReport.findOne({ userId: userId }).sort({
+      createdAt: -1,
+    });
+
+    let isPro;
+    if (report?._id) {
+      const payment = await Payment.findOne({
+        reportId: report._id,
+        status: "paid",
+      });
+      isPro = !!payment;
+      return res.status(200).json({
+        ispro: isPro,
+      });
+    } else {
+      return res.status(404).json({
+        message: "User not found!",
+        ispro: false,
+      });
+    }
+  } catch (error) {
+    console.error("Error fetching isUserPremium:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const getCreditReport = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -800,29 +833,6 @@ export const getCreditReportForBot = async (userId, preferLanguage) => {
 
     let isPro = false;
     if (report?._id) {
-      const prompt = `Translate this JSON to ${preferLanguage}:\n\n${JSON.stringify(
-        report,
-        null,
-        2
-      )}\n\nOnly translate the **string values**. 
-Do **not** change any keys or structure. Return only valid JSON with no explanation, no code block, no formatting. 
-Do **not** translate disputeLetter and goodwillScript.`;
-
-      const completion = await client.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.3,
-      });
-
-      const translatedText = completion.choices[0].message.content;
-
-      const cleaned = translatedText
-        .replace(/^```(json)?/, "")
-        .replace(/```$/, "")
-        .trim();
-
-      const translatedObject = JSON.parse(cleaned);
-
       const payment = await Payment.findOne({
         reportId: report._id,
         status: "paid",
@@ -830,9 +840,15 @@ Do **not** translate disputeLetter and goodwillScript.`;
 
       isPro = !!payment;
 
+      if (!isPro) {
+        return {
+          ispro: isPro,
+          result: {},
+        };
+      }
       return {
         ispro: isPro,
-        result: translatedObject || {},
+        result: report || {},
       };
     } else {
       return {
