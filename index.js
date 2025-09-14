@@ -12,9 +12,24 @@ globalThis.File = File;
 connectDatabase();
 embedFaqs()
 
+const allowedOrigins = [
+  "https://scorewise.ca",
+  "https://www.scorewise.ca",
+  "http://localhost:5173"
+];
+
 // Allow requests from your frontend
 app.use(cors({
-  origin: process.env.FRONT_END_URL, // or your frontend URL
+   origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("Not allowed by CORS"));
+    }
+  },
   methods: ["GET", "POST", "PATCH", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
