@@ -6,7 +6,7 @@ import { getCreditReportForBot } from "../controllers/analyzeController.js";
 config();
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export default async function handleUserMessage(userId, query, preferLanguage, sessionId) {
+export default async function handleUserMessage(userId, query, preferLanguage = "en", sessionId) {
   try {
     const messages = [
       {
@@ -16,7 +16,7 @@ export default async function handleUserMessage(userId, query, preferLanguage, s
       },
       {
         role: "user",
-        content: query + "responde with translation in " + preferLanguage + "(ISO language). give response in single language.",
+        content: query + "responde with translation in " + preferLanguage + "(ISO language). give response in single language. don't reply with I can only help in English. How can I help you today?",
       },
     ];
 
