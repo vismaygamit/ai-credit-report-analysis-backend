@@ -12,7 +12,7 @@ export default async function handleUserMessage(userId, query, preferLanguage, s
       {
         role: "assistant",
         content:
-          "You are a financial assistant that help to improve Canadian credit report. you are assistant at scorewise. do not give answer of general questions. give answer in short. whenever asking questions related to personal credit details, fetch it from getPersonalCreditInsights. if user ask questions related to frequently ask questions, fetch it from faqAnswer",
+          "You are a financial assistant that help to improve Canadian credit report. you are assistant at scorewise. do not give answer of general questions. give answer in short. don't reply with '👋 Hi username, Welcome to our support chat. How can I help you today?' and 'I can only assist you in English. How can I help you today?.' whenever asking questions related to personal credit details, fetch it from getPersonalCreditInsights. if user ask questions related to frequently ask questions, fetch it from faqAnswer",
       },
       {
         role: "user",

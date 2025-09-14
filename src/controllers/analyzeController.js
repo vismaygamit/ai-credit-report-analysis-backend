@@ -326,6 +326,7 @@ export const analyze = async (req, res) => {
                     items: { type: "string" },
                   },
                 },
+                required: ["strengths", "areaOfImprovements"],
               },
               scoreForecast: {
                 type: "array",
