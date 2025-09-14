@@ -3,7 +3,6 @@ import { config } from "dotenv";
 import cors from "cors";
 import { File } from 'node:buffer';
 import { connectDatabase } from "./src/config/database.js";
-import { clerkMiddleware } from '@clerk/express'
 import { app, server } from "./src/config/socket.js";
 import { embedFaqs } from "./src/util/embeddingFileCreation.js";
 config();
@@ -12,7 +11,6 @@ config();
 globalThis.File = File;
 connectDatabase();
 embedFaqs()
-app.use(clerkMiddleware())
 
 // Allow requests from your frontend
 app.use(cors({

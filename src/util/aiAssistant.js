@@ -6,7 +6,7 @@ import { getCreditReportForBot } from "../controllers/analyzeController.js";
 config();
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export default async function handleUserMessage(userId, query, preferLanguage) {
+export default async function handleUserMessage(userId, query, preferLanguage, sessionId) {
   try {
     const messages = [
       {
@@ -16,7 +16,7 @@ export default async function handleUserMessage(userId, query, preferLanguage) {
       },
       {
         role: "user",
-        content: query + "responde with translation in " + preferLanguage + "(ISO language).",
+        content: query + "responde with translation in " + preferLanguage + "(ISO language). give response in single language.",
       },
     ];
 
@@ -101,7 +101,7 @@ export default async function handleUserMessage(userId, query, preferLanguage) {
           case "getPersonalCreditInsights": {
             const { ispro, result } = await getPersonalCreditInsights(
               userId,
-              preferLanguage
+              sessionId
             );
             if (ispro) {
               return await sendFollowup(toolCall, JSON.stringify(result || {}));
@@ -187,6 +187,6 @@ function assertArrayOfFaqs(faqs) {
   return list;
 }
 
-async function getPersonalCreditInsights(userId, preferLanguage) {
-  return await getCreditReportForBot(userId, preferLanguage);
+async function getPersonalCreditInsights(userId, sessionId) {
+  return await getCreditReportForBot(userId, sessionId);
 }

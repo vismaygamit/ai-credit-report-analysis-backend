@@ -8,11 +8,10 @@ export const checkout = async (req, res) => {
   try {
     const { userId } = req.auth;
     // Create a Stripe Checkout session
-    const { reportId } = req.body;
-    if (!userId || !reportId) {
+    if (!userId) {
       return res
         .status(400)
-        .json({ message: "User ID and report id is required." });
+        .json({ message: "User ID id is required." });
     }
 
     // Initialize Stripe with secret key
@@ -43,13 +42,11 @@ export const checkout = async (req, res) => {
       cancel_url: `${process.env.FRONT_END_URL}/fail`,
       metadata: {
         userId: userId || "",
-        reportId: reportId || "",
       },
     });
     // Save payment session data to the database
     await Payment.create({
       userId,
-      reportId,
       amount: session.amount_total / 100, // Convert cents to dollars
       method: session.payment_method_types[0],
       currency: session.currency,
@@ -95,8 +92,8 @@ export const webhook = async (req, res) => {
         // Update the report status to 'paid'
         if (checkoutSessionCompleted.payment_status === "paid") {
           await Report.findOneAndUpdate(
-            { _id: checkoutSessionCompleted.metadata.reportId },
             { userId: checkoutSessionCompleted.metadata.userId },
+            { sessionId: checkoutSessionCompleted.id },
             { new: true }
           );
         }

@@ -37,8 +37,8 @@ io.use(async (socket, next) => {
 });
 
 io.on("connection", async (socket) => {
-  socket.on("message", async (data, preferLanguage) => {
-    await handleUserMessage(socket.userId, data, preferLanguage);
+  socket.on("message", async (data, preferLanguage, sessionId) => {
+    await handleUserMessage(socket.userId, data, preferLanguage, sessionId);
   });
 
   socket.on("disconnect", () => {

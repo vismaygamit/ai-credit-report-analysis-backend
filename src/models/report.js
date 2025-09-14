@@ -13,17 +13,18 @@ const CreditReportSchema = new mongoose.Schema(
     userId: { type: String },
     isEmailSent: { type: Boolean, default: false },
     preferLanguage: { type: String, default: "en" },
+    sessionId: { type: String, default: "" },
     summary: {
       score: Number,
       rating: String,
       tradelines: {
-        revolving: [{ type: mongoose.Schema.Types.Mixed }],
-        installment: [{ type: mongoose.Schema.Types.Mixed }],
-        open: [{ type: mongoose.Schema.Types.Mixed }],
-        mortgage: [{ type: mongoose.Schema.Types.Mixed }],
+        revolving: { type: Number, default: 0 },
+        installment: { type: Number, default: 0 },
+        open: { type: Number, default: 0 },
+        mortgage: { type: Number, default: 0 },
       },
       paymentHistory: {
-        allCurrent: Boolean,
+        // allCurrent: Boolean,
         missedOrLatePast24Months: Number,
       },
       inquiries: {
@@ -37,12 +38,12 @@ const CreditReportSchema = new mongoose.Schema(
             lender: {
               type: String,
             },
-            type: {
-              type: String,
-            },
-            affectsScore: {
-              type: Boolean,
-            },
+            // type: {
+            //   type: String,
+            // },
+            // affectsScore: {
+            //   type: Boolean,
+            // },
           },
         ],
         soft: [
@@ -54,22 +55,22 @@ const CreditReportSchema = new mongoose.Schema(
             lender: {
               type: String,
             },
-            type: {
-              type: String,
-            },
-            affectsScore: {
-              type: Boolean,
-            },
+            // type: {
+            //   type: String,
+            // },
+            // affectsScore: {
+            //   type: Boolean,
+            // },
           },
         ],
       },
-      collections: Number,
-      judgments: Number,
+      // collections: Number,
+      // judgments: Number,
       creditUtilization: {
-        totalLimit: Number,
-        totalBalance: Number,
+        totalLimit: Number, //discuss
+        totalBalance: Number, //discuss
         utilizationRate: Number,
-        rating: String,
+        rating: String, //discuss
       },
       creditAge: {
         oldest: { type: mongoose.Schema.Types.Mixed },
@@ -90,16 +91,16 @@ const CreditReportSchema = new mongoose.Schema(
         pastDue: { type: Number },
       },
     ],
-    publicRecords: {
-      collections: { type: Number },
-      judgments: { type: Number },
-    },
-    securedLoan: {
-      lender: { type: String },
-      registered: { type: String },
-      amount: { type: Number, min: 0 },
-      maturity: { type: String },
-    },
+    // publicRecords: {
+    //   collections: { type: Number },
+    //   judgments: { type: Number },
+    // },
+    // securedLoan: {
+    //   lender: { type: String },
+    //   registered: { type: String },
+    //   amount: { type: Number, min: 0 },
+    //   maturity: { type: String },
+    // },
     creditEvaluation: {
       utilization: { type: String },
       creditMix: { type: String },
@@ -108,6 +109,8 @@ const CreditReportSchema = new mongoose.Schema(
       inquiryFrequency: { type: String },
       derogatoryMarks: { type: String },
       fileDepth: { type: String },
+      strengths: { type: Array },
+      areaOfImprovements: { type: Array },
     },
     scoreForecast: [
       {
@@ -119,15 +122,22 @@ const CreditReportSchema = new mongoose.Schema(
         confidence: { type: String },
       },
     ],
-    actionPlan: [
+    scoreChanges: [
       {
         _id: false,
-        recommendation: { type: String },
-        description: { type: String },
-        priority: { type: String },
-        timeline: { type: String },
+        estimatedImpact: { type: String },
+        timeline: { type: String }
       },
     ],
+    // actionPlan: [
+    //   {
+    //     _id: false,
+    //     recommendation: { type: String },
+    //     description: { type: String },
+    //     priority: { type: String },
+    //     timeline: { type: String },
+    //   },
+    // ],
     disputeToolkit: {
       disputeLetter: { type: String },
       goodwillScript: { type: String },
@@ -136,7 +146,7 @@ const CreditReportSchema = new mongoose.Schema(
       creditSummary: {
         onTimePayments: { type: String },
         activeAccounts: { type: Number },
-        derogatoryMarks: { type: Number },
+        // derogatoryMarks: { type: Number },
       },
       scoreSimulator: [{ type: mongoose.Schema.Types.Mixed }],
       target: { type: String },
@@ -149,8 +159,8 @@ const CreditReportSchema = new mongoose.Schema(
       },
       forecastChart: {
         dataPoints: [{ type: mongoose.Schema.Types.Mixed }],
-        targetScore: { type: Number },
-        targetDate: { type: String },
+        // targetScore: { type: Number },
+        // targetDate: { type: String },
       },
     },
     reminders: [
@@ -161,6 +171,17 @@ const CreditReportSchema = new mongoose.Schema(
         action: { type: String },
       },
     ],
+    // improvementPotential: {type: Number },
+    // rating: { type: String },
+    // score: {type: Number },
+    // keyAreasForImprovement: [
+    //   {
+    //     _id: false,
+    //     title: { type: String },
+    //     priority: { type: String },
+    //   },
+    // ],
+    // filePath: { type: String }
   },
   { timestamps: true }
 );

@@ -37,6 +37,84 @@ const extractTextFromPDF = async (pdfPath) => {
   return fullText;
 };
 
+export const basicAnalyze = async (req, res) => {
+  try {
+    const { userId } = req.auth;
+    if (!userId) {
+      return res.status(400).json({ message: "Invalid request" });
+    }
+    const lang = req.get("Accept-Language");
+    if (!req.file || !req.file.path) {
+      return res.status(400).json({ message: "Please select a file." });
+    }
+
+    const filePath = req.file.path;
+    const fullText = await extractTextFromPDF(filePath);
+    if (filePath && fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    const trialReportTools = {
+      model: "gpt-4.1",
+      messages: [
+        {
+          role: "system",
+          content: `*"Extract from the credit report: Score, Rating, Improvement Potential (estimated increase), and Key Areas for Improvement. Present the result strictly in JSON format with these fields:
+score
+rating
+improvementPotential(only in points number)
+keyAreasForImprovement (array of objects with title and priority only, no details, no actions, no estimated impact).
+Sort the improvement areas by priority: Very High → High → Medium → Low."*`,
+        },
+        {
+          role: "user",
+          content: `Please analyze and respond Extract from the following section:\n\n${fullText}. output language should be ${lang} language.`,
+        },
+      ],
+    };
+
+    const response = await client.chat.completions.create(trialReportTools);
+    let answer = response.choices?.[0]?.message?.content?.trim();
+    answer = answer.replace(/```json|```/g, "").trim();
+    const jsonStart = answer.indexOf("{");
+    const jsonEnd = answer.lastIndexOf("}");
+
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      answer = answer.substring(jsonStart, jsonEnd + 1);
+      answer = JSON.parse(answer);
+    } else {
+      throw new Error("No valid JSON object found");
+    }
+    if (!answer) {
+      return res.status(200).json({
+        count: 0,
+        ispro: false,
+        result: {},
+      });
+    }
+
+    const report = {
+      // _id: report._id,
+      // userId: report.userId,
+      // isEmailSent: report.isEmailSent,
+      preferLanguage: lang,
+      improvementPotential: answer.improvementPotential,
+      rating: answer.rating,
+      score: answer.score,
+      keyAreasForImprovement: answer.keyAreasForImprovement,
+    };
+
+    return res.status(200).json({
+      count: Object.keys(report || 0).length,
+      ispro: false,
+      result: Object.keys(report || {}).length > 0 ? report : {},
+    });
+  } catch (error) {
+    console.error("Error in analyze:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const analyze = async (req, res) => {
   try {
     const { userId } = req.auth;
@@ -48,11 +126,14 @@ export const analyze = async (req, res) => {
       return res.status(400).json({ message: "Please select a file." });
     }
 
-    const { reportId } = req.body;
-
+    const { paymentId } = req.body;
     let isPro;
-    if (userId && reportId) {
-      const payment = await Payment.findOne({ reportId, status: "paid" });
+    if (userId && paymentId) {
+      const payment = await Payment.findOne({
+        sessionId: paymentId,
+        status: "paid",
+      });
+      console.log("payment", payment);
 
       isPro = !!payment;
     } else {
@@ -85,26 +166,39 @@ export const analyze = async (req, res) => {
                 type: "object",
                 properties: {
                   score: { type: "number" },
-                  rating: { type: "string" },
+                  rating: {
+                    type: "string",
+                    description:
+                      "give rating from fair, good, very good, excellent base on target language",
+                  },
                   tradelines: {
                     type: "object",
-                    description: "it should be sentence in short",
+                    description: "it should be total number of account type.",
                     properties: {
                       revolving: {
-                        type: "array",
-                        items: {
-                          type: "string",
-                        },
+                        type: "integer",
+                        // items: {
+                        //   type: "string",
+                        // },
                       },
-                      installment: { type: "array", items: { type: "string" } },
-                      open: { type: "array", items: { type: "string" } },
-                      mortgage: { type: "array", items: { type: "string" } },
+                      installment: {
+                        type: "integer",
+                        // , items: { type: "string" }
+                      },
+                      open: {
+                        type: "integer",
+                        // , items: { type: "string" }
+                      },
+                      mortgage: {
+                        type: "integer",
+                        // , items: { type: "string" }
+                      },
                     },
                   },
                   paymentHistory: {
                     type: "object",
                     properties: {
-                      allCurrent: { type: "boolean" },
+                      // allCurrent: { type: "boolean" },
                       missedOrLatePast24Months: { type: "number" },
                     },
                   },
@@ -117,46 +211,48 @@ export const analyze = async (req, res) => {
                       },
                       hard: {
                         type: "array",
-                        description:
-                          "List of hard inquiries, Use the affectsScore field to distinguish: Yes = hard, No = soft",
+                        description: "List of hard inquiries",
                         items: {
                           type: "object",
                           properties: {
                             date: { type: "string", format: "date" },
                             lender: { type: "string" },
-                            type: { type: "string", enum: ["hard"] },
-                            affectsScore: { type: "boolean", const: true },
+                            // type: { type: "string", enum: ["hard"] },
+                            // affectsScore: { type: "boolean", const: true },
                           },
-                          required: ["date", "lender", "type", "affectsScore"],
+                          required: ["date", "lender"],
                         },
                       },
                       soft: {
                         type: "array",
-                        description:
-                          "List of soft inquiries, Use the affectsScore field to distinguish: Yes = hard, No = soft",
+                        description: "List of soft inquiries",
                         items: {
                           type: "object",
                           properties: {
                             date: { type: "string", format: "date" },
                             lender: { type: "string" },
-                            type: { type: "string", enum: ["soft"] },
-                            affectsScore: { type: "boolean", const: false },
+                            // type: { type: "string", enum: ["soft"] },
+                            // affectsScore: { type: "boolean", const: false },
                           },
-                          required: ["date", "lender", "type", "affectsScore"],
+                          required: ["date", "lender"],
                         },
                       },
                     },
                     required: ["total", "hard", "soft"],
                   },
-                  collections: { type: "number" },
-                  judgments: { type: "number" },
+                  // collections: { type: "number" },
+                  // judgments: { type: "number" },
                   creditUtilization: {
                     type: "object",
                     properties: {
-                      totalLimit: { type: "number" },
-                      totalBalance: { type: "number" },
-                      utilizationRate: { type: "number" },
-                      rating: { type: "string" },
+                      totalLimit: { type: "number" }, //discuss
+                      totalBalance: { type: "number" }, //discuss
+                      utilizationRate: {
+                        type: "number",
+                        description: "it should be in %",
+                      },
+                      rating: { type: "string" }, //discuss
+                      // creditUtilization: { type: "number", description: "it should be in %" }
                     },
                   },
                   creditAge: {
@@ -178,6 +274,7 @@ export const analyze = async (req, res) => {
                       },
                       averageAgeYears: { type: "number" },
                     },
+                    required: ["creditAge"],
                   },
                 },
               },
@@ -197,22 +294,22 @@ export const analyze = async (req, res) => {
                   },
                 },
               },
-              publicRecords: {
-                type: "object",
-                properties: {
-                  collections: { type: "number" },
-                  judgments: { type: "number" },
-                },
-              },
-              securedLoan: {
-                type: "object",
-                properties: {
-                  lender: { type: "string" },
-                  registered: { type: "string" },
-                  amount: { type: "number" },
-                  maturity: { type: "string" },
-                },
-              },
+              // publicRecords: {
+              //   type: "object",
+              //   properties: {
+              //     collections: { type: "number" },
+              //     judgments: { type: "number" },
+              //   },
+              // },
+              // securedLoan: {
+              //   type: "object",
+              //   properties: {
+              //     lender: { type: "string" },
+              //     registered: { type: "string" },
+              //     amount: { type: "number" },
+              //     maturity: { type: "string" },
+              //   },
+              // },
               creditEvaluation: {
                 type: "object",
                 properties: {
@@ -223,33 +320,61 @@ export const analyze = async (req, res) => {
                   inquiryFrequency: { type: "string" },
                   derogatoryMarks: { type: "string" },
                   fileDepth: { type: "string" },
+                  strengths: { type: "array", items: { type: "string" } },
+                  areaOfImprovements: {
+                    type: "array",
+                    items: { type: "string" },
+                  },
                 },
               },
               scoreForecast: {
                 type: "array",
+                description:
+                  "this data should be like 1 month, 3 months, 6 months",
                 items: {
                   type: "object",
                   properties: {
                     action: { type: "string" },
                     estimatedImpact: { type: "string" },
                     timeline: { type: "string" },
-                    priority: { type: "string" },
+                    priority: {
+                      type: "string",
+                      description: "must not translate",
+                    },
                     confidence: { type: "string" },
                   },
                 },
               },
-              actionPlan: {
+              scoreChanges: {
                 type: "array",
+                description:
+                  "this data should be like 1 month, 3 months, 6 months, only give 3 records.",
                 items: {
                   type: "object",
                   properties: {
-                    recommendation: { type: "string" },
-                    description: { type: "string" },
-                    priority: { type: "string" },
-                    timeline: { type: "string" },
+                    estimatedImpact: {
+                      type: "string",
+                      description: "it should be in this format '+15-25'",
+                    },
+                    timeline: {
+                      type: "string",
+                      description: "it should be in this format '2 months'",
+                    },
                   },
                 },
               },
+              // actionPlan: {
+              //   type: "array",
+              //   items: {
+              //     type: "object",
+              //     properties: {
+              //       recommendation: { type: "string" },
+              //       description: { type: "string" },
+              //       priority: { type: "string" },
+              //       timeline: { type: "string" },
+              //     },
+              //   },
+              // },
               disputeToolkit: {
                 type: "object",
                 // description: "generate letter only for problematic accounts such as missed payment, unable to collect",
@@ -276,10 +401,18 @@ export const analyze = async (req, res) => {
                   creditSummary: {
                     type: "object",
                     properties: {
-                      onTimePayments: { type: "string" },
+                      onTimePayments: {
+                        type: "number",
+                        description: "it should be in %",
+                      },
                       activeAccounts: { type: "number" },
-                      derogatoryMarks: { type: "number" },
+                      // derogatoryMarks: { type: "number" },
                     },
+                    required: [
+                      "onTimePayments",
+                      "activeAccounts",
+                      "derogatoryMarks",
+                    ],
                   },
                   scoreSimulator: {
                     type: "array",
@@ -359,8 +492,8 @@ export const analyze = async (req, res) => {
                           },
                         },
                       },
-                      targetScore: { type: "number" },
-                      targetDate: { type: "string" },
+                      // targetScore: { type: "number" },
+                      // targetDate: { type: "string" },
                     },
                   },
                 },
@@ -389,6 +522,7 @@ export const analyze = async (req, res) => {
               "securedLoan",
               "creditEvaluation",
               "scoreForecast",
+              "scoreChanges",
               "actionPlan",
               "disputeToolkit",
               "scoreProgress",
@@ -399,14 +533,33 @@ export const analyze = async (req, res) => {
       },
     ];
 
-    const response = await client.chat.completions.create({
+    const trialReport = {
+      model: "gpt-4.1",
+      messages: [
+        {
+          role: "system",
+          content: `*"Extract from the credit report: Score, Rating, Improvement Potential (estimated increase), and Key Areas for Improvement. Present the result strictly in JSON format with these fields:
+score
+rating
+improvementPotential(only in points number)
+keyAreasForImprovement (array of objects with title and priority only, no details, no actions, no estimated impact).
+Sort the improvement areas by priority: Very High → High → Medium → Low."*`,
+        },
+        {
+          role: "user",
+          content: `Please analyze and respond Extract from the following section:\n\n${fullText}. output language should be ${lang} language.`,
+        },
+      ],
+    };
+
+    const premiumReport = {
       model: "gpt-4.1",
       messages: [
         {
           role: "system",
           content:
             "You are a financial assistant that summarizes Canadian credit report. 1. Extract the following information from the provided credit report and present it in a structured, fixed format: Score, tradelines, payment history, inquiries, collections, judgments, credit utilization, and credit age. 2. Extract structured data from the provided PDF, including: balance, limits, open/closed dates for all accounts; payment timestamps and past dues; account types (revolving, installment, open, mortgage); inquiry dates, lenders, and types; collection dates, agencies, and statuses; and public records such as bankruptcies, liens, and judgments. 3. Evaluate the credit report data based on the following criteria: total utilization vs. optimal levels, credit mix, payment history strength, delinquency aging & severity, inquiry frequency and timing, presence and age of derogatory marks, and whether it's a thin file vs. seasoned file. 4. Provide a 'Score Forecast Engine' that estimates projected score increases based on user actions like paying down specific cards, asking for credit limit increases, removing old collections, reporting rent/utilities, and avoiding hard inquiries. The output should show the score impact, timeline for effect, priority of actions, and confidence level of the forecast, all in a fixed format. 5. Generate an 'AI Action Plan Generator' providing personalized, actionable items based on the credit report data. The plan should include recommendations for: paying down specific cards, adding a rent tradeline, asking the bank for a credit limit increase, avoiding credit applications, and keeping old accounts open, presented in a fixed format with specific recommendations, priority, and timeline for each. 6. Generate a 'Dispute & Removal Toolkit' including templates for a dispute letter and a goodwill removal script. These templates should be personalized with my credit report information (name, address, relevant account numbers, and specific details for a potential secured loan maturity date dispute) and presented in a fixed format. 7. Provide a 'Score Progress Tracker' output that includes a full credit summary, score simulation, action checklist, forecast chart, and dispute & goodwill letters, presented in a fixed format." +
-            "8. Create an 'AI Reminder & Re-Evaluation Engine' that suggests when credit updates are likely to appear, reminds the user to re-check their score, and proposes a timeline for re-analysis, all in a fixed format. Do **not** translate disputeLetter and goodwillScript.",
+            "8. Create an 'AI Reminder & Re-Evaluation Engine' that suggests when credit updates are likely to appear, reminds the user to re-check their score, and proposes a timeline for re-analysis, all in a fixed format. Do **not** translate rating, priority, disputeLetter and goodwillScript.",
         },
         {
           role: "user",
@@ -426,53 +579,92 @@ export const analyze = async (req, res) => {
         },
       ],
       tools,
-    });
-    const toolCall1 = response.choices[0].message.tool_calls?.[0];
-    const args = JSON.parse(toolCall1.function.arguments);
+    };
+    const response = await client.chat.completions.create(
+      isPro ? premiumReport : trialReport
+    );
 
-    if (isToolCallEmpty(response) || args?.emptyResponse === true) {
-      console.log("⚠️ Credit report is empty or invalid file.");
-      return res.status(404).json({
-        message: "Credit report is empty or the uploaded file is invalid.",
-      });
-    } else {
-      // Parse the tool call arguments from the OpenAI response
-      const updateFields = {
-        userId,
-        summary: args.summary ?? {},
-        accountsAndBalances: Array.isArray(args.accountsAndBalances)
-          ? args.accountsAndBalances
-          : [],
-        inquiries: Array.isArray(args.inquiries) ? args.inquiries : [],
-        publicRecords: args.publicRecords ?? {},
-        securedLoan: args.securedLoan ?? {},
-        creditEvaluation: args.creditEvaluation ?? {},
-        scoreForecast: Array.isArray(args.scoreForecast)
-          ? args.scoreForecast
-          : [],
-        preferLanguage: lang,
-        actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
-        disputeToolkit: args.disputeToolkit ?? {},
-        scoreProgress: args.scoreProgress ?? {},
-        reminders: Array.isArray(args.reminders) ? args.reminders : [],
-      };
+    if (isPro) {
+      const toolCall1 = response.choices[0].message.tool_calls?.[0];
+      const args = JSON.parse(toolCall1.function.arguments);
+      if (isToolCallEmpty(response) || args?.emptyResponse === true) {
+        console.log("⚠️ Credit report is empty or invalid file.");
+        return res.status(404).json({
+          message: "Credit report is empty or the uploaded file is invalid.",
+        });
+      } else {
+        // Parse the tool call arguments from the OpenAI response
+        const updateFields = {
+          userId,
+          summary: args.summary ?? {},
+          accountsAndBalances: Array.isArray(args.accountsAndBalances)
+            ? args.accountsAndBalances
+            : [],
+          // inquiries: Array.isArray(args.inquiries) ? args.inquiries : [],
+          // publicRecords: args.publicRecords ?? {},
+          // securedLoan: args.securedLoan ?? {},
+          sessionId: paymentId,
+          creditEvaluation: args.creditEvaluation ?? {},
+          scoreForecast: Array.isArray(args.scoreForecast)
+            ? args.scoreForecast
+            : [],
+          scoreChanges: Array.isArray(args.scoreChanges)
+            ? args.scoreChanges
+            : [],
+          preferLanguage: lang,
+          // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
+          disputeToolkit: args.disputeToolkit ?? {},
+          scoreProgress: args.scoreProgress ?? {},
+          reminders: Array.isArray(args.reminders) ? args.reminders : [],
+        };
 
-      // Remove fields that are undefined or null
-      for (const key in updateFields) {
-        if (updateFields[key] === undefined || updateFields[key] === null) {
-          delete updateFields[key];
+        // Remove fields that are undefined or null
+        for (const key in updateFields) {
+          if (updateFields[key] === undefined || updateFields[key] === null) {
+            delete updateFields[key];
+          }
         }
+
+        // Save the report to the database
+        let report = await CreditReport.create(updateFields);
+        console.log("here", report);
+        report = {
+          _id: report._id,
+          userId,
+          isEmailSent: report.isEmailSent,
+          summary: report.summary ?? {},
+          accountsAndBalances: Array.isArray(report.accountsAndBalances)
+            ? report.accountsAndBalances
+            : [],
+          // inquiries: Array.isArray(args.inquiries) ? args.inquiries : [],
+          // publicRecords: args.publicRecords ?? {},
+          // securedLoan: args.securedLoan ?? {},
+          creditEvaluation: report.creditEvaluation ?? {},
+          scoreForecast: Array.isArray(report.scoreForecast)
+            ? report.scoreForecast
+            : [],
+          scoreChanges: Array.isArray(report.scoreChanges)
+            ? report.scoreChanges
+            : [],
+          preferLanguage: lang,
+          // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
+          disputeToolkit: report.disputeToolkit ?? {},
+          sessionId: report.sessionId,
+          scoreProgress: report.scoreProgress ?? {},
+          reminders: Array.isArray(report.reminders) ? report.reminders : [],
+        };
+        // Respond with the saved report
+        return res.status(200).json({
+          count: Object.keys(report || 0).length,
+          ispro: isPro,
+          result: Object.keys(report || {}).length > 0 ? report : {},
+        });
       }
-
-      // Save the report to the database
-      const report = await CreditReport.create(updateFields);
-
-      // Respond with the saved report
-
-      return res.status(200).json({
-        count: Object.keys(report || 0).length,
-        ispro: isPro,
-        result: Object.keys(report || {}).length > 0 ? report : {},
+    } else {
+            return res.status(200).json({
+        count: 0,
+        ispro: false,
+        result: {},
       });
     }
   } catch (error) {
@@ -560,12 +752,35 @@ export const getCreditReport = async (req, res) => {
     if (!userId) {
       return res.status(400).json({ message: "User id is required." });
     }
-    const report = await CreditReport.findOne({ userId: userId }).sort({
-      createdAt: -1,
-    });
+
+    const report = await CreditReport.findOne(
+      { userId }, // query
+      {
+        _id: 1,
+        userId: 1,
+        isEmailSent: 1,
+        preferLanguage: 1,
+        sessionId: 1,
+        summary: 1,
+        accountsAndBalances: 1,
+        creditEvaluation: 1,
+        scoreForecast: 1,
+        scoreChanges: 1,
+        disputeToolkit: 1,
+        scoreProgress: 1,
+        reminders: 1,
+      }, // projection
+      { sort: { createdAt: -1 } } // options
+    );
 
     let isPro;
     if (report?._id) {
+      const payment = await Payment.findOne({
+        sessionId: report.sessionId,
+        status: "paid",
+      });
+      isPro = !!payment;
+
       const prompt = `Translate this JSON to ${
         report.preferLanguage
       }:\n\n${JSON.stringify(
@@ -573,8 +788,8 @@ export const getCreditReport = async (req, res) => {
         null,
         2
       )}\n\nOnly translate the **string values**. Do **not** change any keys or structure. 
-Return only valid JSON with no explanation, no code block, no formatting. Do **not** translate disputeLetter and goodwillScript
-.`;
+  Return only valid JSON with no explanation, no code block, no formatting. Do **not** translate _id, userId, isEmailSent, preferLanguage, sessionId, rating, priority, disputeLetter and goodwillScript
+  .`;
 
       const completion = await client.chat.completions.create({
         model: "gpt-4o",
@@ -583,18 +798,12 @@ Return only valid JSON with no explanation, no code block, no formatting. Do **n
       });
 
       const translatedText = completion.choices[0].message.content;
-
       const cleaned = translatedText
         .replace(/^```(json)?/, "")
         .replace(/```$/, "")
         .trim();
       const translatedObject = JSON.parse(cleaned);
 
-      const payment = await Payment.findOne({
-        reportId: report._id,
-        status: "paid",
-      });
-      isPro = !!payment;
       return res.status(200).json({
         count: translatedObject
           ? Object.keys(
@@ -641,8 +850,7 @@ export const transLate = async (req, res) => {
     null,
     2
   )}\n\nOnly translate the **string values**. Do **not** change any keys or structure. 
-Return only valid JSON with no explanation, no code block, no formatting. Do **not** translate disputeLetter and goodwillScript
-.`;
+Return only valid JSON with no explanation, no code block, no formatting. Do **not** translate _id, userId, isEmailSent, preferLanguage, sessionId, rating, priority, disputeLetter and goodwillScript.`;
 
   try {
     const completion = await client.chat.completions.create({
@@ -821,20 +1029,23 @@ export const updateUserLanguage = async (req, res) => {
   }
 };
 
-export const getCreditReportForBot = async (userId, preferLanguage) => {
+export const getCreditReportForBot = async (
+  userId,
+  sessionId
+) => {
   try {
-    if (!userId) {
+    if (!userId && !sessionId) {
       throw new Error("User id is required.");
     }
 
-    const report = await CreditReport.findOne({ userId }).sort({
+    const report = await CreditReport.findOne({ userId, sessionId }).sort({
       createdAt: -1,
     });
 
     let isPro = false;
     if (report?._id) {
       const payment = await Payment.findOne({
-        reportId: report._id,
+        sessionId: report.sessionId,
         status: "paid",
       });
 
