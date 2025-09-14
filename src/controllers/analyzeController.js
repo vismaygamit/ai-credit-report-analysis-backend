@@ -662,7 +662,7 @@ Sort the improvement areas by priority: Very High → High → Medium → Low."*
         });
       }
     } else {
-            return res.status(200).json({
+      return res.status(200).json({
         count: 0,
         ispro: false,
         result: {},
@@ -781,6 +781,16 @@ export const getCreditReport = async (req, res) => {
         status: "paid",
       });
       isPro = !!payment;
+
+      if (!isPro) {
+        return res.status(200).json({
+          count: report
+            ? Object.keys(report.toObject ? report.toObject() : report).length
+            : 0,
+          ispro: isPro,
+          result: report || {},
+        });
+      }
 
       const prompt = `Translate this JSON to ${
         report.preferLanguage
@@ -1030,10 +1040,7 @@ export const updateUserLanguage = async (req, res) => {
   }
 };
 
-export const getCreditReportForBot = async (
-  userId,
-  sessionId
-) => {
+export const getCreditReportForBot = async (userId, sessionId) => {
   try {
     if (!userId && !sessionId) {
       throw new Error("User id is required.");
