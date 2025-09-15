@@ -9,6 +9,8 @@ import pdfjs from "pdfjs-dist/legacy/build/pdf.js";
 const { getDocument, GlobalWorkerOptions } = pdfjs;
 import { clerkClient } from "@clerk/express";
 import { sendMail } from "../util/sendMail.js";
+import isoToFullName from "../util/isoToFullName.js";
+import { jsonrepair } from "jsonrepair";
 config();
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -37,6 +39,30 @@ const extractTextFromPDF = async (pdfPath) => {
   return fullText;
 };
 
+function extractJson(answer) {
+  // Remove markdown fences
+  answer = answer.replace(/```json|```/g, "").trim();
+
+  // Match the first { ... } or [ ... ]
+  const match = answer.match(/(\{[\s\S]*?\}|\[[\s\S]*?\])/);
+  if (!match) {
+    throw new Error("No valid JSON object or array found");
+  }
+
+  try {
+    // Try strict parse first
+    return JSON.parse(match[0]);
+  } catch {
+    // If fails, attempt repair
+    try {
+      const fixed = jsonrepair(match[0]);
+      return JSON.parse(fixed);
+    } catch (e2) {
+      throw new Error("Invalid JSON format, even after repair: " + e2.message);
+    }
+  }
+}
+
 export const basicAnalyze = async (req, res) => {
   try {
     const { userId } = req.auth;
@@ -59,32 +85,50 @@ export const basicAnalyze = async (req, res) => {
       messages: [
         {
           role: "system",
-          content: `*"Extract from the credit report: Score, Rating, Improvement Potential (estimated increase), and Key Areas for Improvement. Present the result strictly in JSON format with these fields:
-score
-rating
-improvementPotential(only in points number)
-keyAreasForImprovement (array of objects with title and priority only, no details, no actions, no estimated impact).
-Sort the improvement areas by priority: Very High → High → Medium → Low."*`,
+          content: `Extract from the credit report the following information:
+
+- score
+- rating
+- improvementPotential (numeric, only in points)
+- keyAreasForImprovement (array of objects with title and priority only, no details, no actions, no estimated impact).
+
+Requirements:
+1. Present the result strictly in valid JSON with the fields:
+   {
+     "score": "",
+     "rating": "",
+     "improvementPotential": 0,
+     "keyAreasForImprovement": [
+       { "title": "", "priority": "" }
+     ]
+   }
+2. Do not translate the values of score, priority and rating.
+3. Translate all other values into ${isoToFullName(lang)} language.
+4. Sort keyAreasForImprovement by priority in this order: Very High → High → Medium → Low.
+5. The keyAreasForImprovement array must have a maximum of 6 items.
+6. Do not include any text outside of the JSON output.
+`,
         },
         {
           role: "user",
-          content: `Please analyze and respond Extract from the following section:\n\n${fullText}. output language should be ${lang} language.`,
+          content: `Please analyze and respond Extract from the following section:\n\n${fullText} .`,
         },
       ],
     };
 
     const response = await client.chat.completions.create(trialReportTools);
-    let answer = response.choices?.[0]?.message?.content?.trim();
-    answer = answer.replace(/```json|```/g, "").trim();
-    const jsonStart = answer.indexOf("{");
-    const jsonEnd = answer.lastIndexOf("}");
+    let answer = response.choices?.[0]?.message?.content ?? "";
+    answer = extractJson(answer);
+    // answer = answer.replace(/```json|```/g, "").trim();
+    // const jsonStart = answer.indexOf("{");
+    // const jsonEnd = answer.lastIndexOf("}");
 
-    if (jsonStart !== -1 && jsonEnd !== -1) {
-      answer = answer.substring(jsonStart, jsonEnd + 1);
-      answer = JSON.parse(answer);
-    } else {
-      throw new Error("No valid JSON object found");
-    }
+    // if (jsonStart !== -1 && jsonEnd !== -1) {
+    //   answer = answer.substring(jsonStart, jsonEnd + 1);
+    //   answer = JSON.parse(answer);
+    // } else {
+    //   throw new Error("No valid JSON object found");
+    // }
     if (!answer) {
       return res.status(200).json({
         count: 0,
@@ -115,6 +159,24 @@ Sort the improvement areas by priority: Very High → High → Medium → Low."*
   }
 };
 
+async function translateJSON(obj, targetLanguage) {
+  const prompt = `Translate this JSON to ${targetLanguage}:
+${JSON.stringify(obj, null, 2)} Requirements:
+1. Only translate string values. Do not translate numbers or booleans.
+2. Do not change any keys or structure.
+3. Return only valid JSON — no explanation, no code block, no formatting.
+4. The following keys must be treated as IMMUTABLE: "_id", "userId", "isEmailSent", "preferLanguage", "sessionId", "rating", "priority", "disputeToolkit", "disputeLetter", "goodwillScript", "impactType".
+5. For these immutable keys, copy their values exactly as they are in the input, without any modification or translation, even if they contain long text or paragraphs.
+6. If an immutable key contains nested objects or arrays, none of the nested values should be translated either.
+`;
+  const completion = await client.chat.completions.create({
+    model: "gpt-4o",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.3,
+  });
+  return completion.choices[0].message.content;
+}
+
 export const analyze = async (req, res) => {
   try {
     const { userId } = req.auth;
@@ -133,8 +195,7 @@ export const analyze = async (req, res) => {
         sessionId: paymentId,
         status: "paid",
       });
-      console.log("payment", payment);
-
+    
       isPro = !!payment;
     } else {
       isPro = false;
@@ -346,6 +407,31 @@ export const analyze = async (req, res) => {
                   },
                 },
               },
+              // advancementssssssss
+              // recommendations: {
+              //           type: "array",
+              //           description: "List of soft inquiries",
+              //           items: {
+              //             type: "object",
+              //             properties: {
+              //               limitIncreaseRecommendations: {
+              //                 type: "object",
+              //                 items: { properties: {
+              //                 account: { type: "string" },
+              //                 currentLimit: { type: "string" },
+              //                 Balance: { type: "string" },
+              //                 suggestedIncrease: { type: "string" },
+              //                 recommendation: { type: "string" }
+              //               } } },
+              //               balanceShiftingRecommendations: { type: "object" },
+              //               earlyPaymentRecommendations: { type: "object" },
+              //               // type: { type: "string", enum: ["soft"] },
+              //               // affectsScore: { type: "boolean", const: false },
+              //             },
+              //             required: ["date", "lender"],
+              //           },
+              //         },
+
               scoreChanges: {
                 type: "array",
                 description:
@@ -544,11 +630,14 @@ score
 rating
 improvementPotential(only in points number)
 keyAreasForImprovement (array of objects with title and priority only, no details, no actions, no estimated impact).
-Sort the improvement areas by priority: Very High → High → Medium → Low."*`,
+Sort the improvement areas by priority: Very High → High → Medium → Low." and translate in ${isoToFullName(
+            lang
+          )} language. Do **not** translate value of _id, userId, isEmailSent, preferLanguage, sessionId, rating, priority, disputeLetter and goodwillScript
+  keys.*`,
         },
         {
           role: "user",
-          content: `Please analyze and respond Extract from the following section:\n\n${fullText}. output language should be ${lang} language.`,
+          content: `Please analyze and respond Extract from the following section:\n\n${fullText}.`,
         },
       ],
     };
@@ -558,13 +647,27 @@ Sort the improvement areas by priority: Very High → High → Medium → Low."*
       messages: [
         {
           role: "system",
-          content:
-            "You are a financial assistant that summarizes Canadian credit report. 1. Extract the following information from the provided credit report and present it in a structured, fixed format: Score, tradelines, payment history, inquiries, collections, judgments, credit utilization, and credit age. 2. Extract structured data from the provided PDF, including: balance, limits, open/closed dates for all accounts; payment timestamps and past dues; account types (revolving, installment, open, mortgage); inquiry dates, lenders, and types; collection dates, agencies, and statuses; and public records such as bankruptcies, liens, and judgments. 3. Evaluate the credit report data based on the following criteria: total utilization vs. optimal levels, credit mix, payment history strength, delinquency aging & severity, inquiry frequency and timing, presence and age of derogatory marks, and whether it's a thin file vs. seasoned file. 4. Provide a 'Score Forecast Engine' that estimates projected score increases based on user actions like paying down specific cards, asking for credit limit increases, removing old collections, reporting rent/utilities, and avoiding hard inquiries. The output should show the score impact, timeline for effect, priority of actions, and confidence level of the forecast, all in a fixed format. 5. Generate an 'AI Action Plan Generator' providing personalized, actionable items based on the credit report data. The plan should include recommendations for: paying down specific cards, adding a rent tradeline, asking the bank for a credit limit increase, avoiding credit applications, and keeping old accounts open, presented in a fixed format with specific recommendations, priority, and timeline for each. 6. Generate a 'Dispute & Removal Toolkit' including templates for a dispute letter and a goodwill removal script. These templates should be personalized with my credit report information (name, address, relevant account numbers, and specific details for a potential secured loan maturity date dispute) and presented in a fixed format. 7. Provide a 'Score Progress Tracker' output that includes a full credit summary, score simulation, action checklist, forecast chart, and dispute & goodwill letters, presented in a fixed format." +
-            "8. Create an 'AI Reminder & Re-Evaluation Engine' that suggests when credit updates are likely to appear, reminds the user to re-check their score, and proposes a timeline for re-analysis, all in a fixed format. Do **not** translate rating, priority, disputeLetter and goodwillScript.",
+          content: `You are a financial assistant that summarizes Canadian credit reports.
+
+1. Extract the following information from the provided credit report and present it in a structured, fixed format: Score, tradelines, payment history, inquiries, collections, judgments, credit utilization, and credit age.  
+2. Extract structured data from the provided PDF, including: balance, limits, open/closed dates for all accounts; payment timestamps and past dues; account types (revolving, installment, open, mortgage); inquiry dates, lenders, and types; collection dates, agencies, and statuses; and public records such as bankruptcies, liens, and judgments.  
+3. Evaluate the credit report data based on the following criteria: total utilization vs. optimal levels, credit mix, payment history strength, delinquency aging & severity, inquiry frequency and timing, presence and age of derogatory marks, and whether it's a thin file vs. seasoned file.  
+4. Provide a "Score Forecast Engine" that estimates projected score increases based on user actions like paying down specific cards, asking for credit limit increases, removing old collections, reporting rent/utilities, and avoiding hard inquiries. The output should show the score impact, timeline for effect, priority of actions, and confidence level of the forecast, all in a fixed format.  
+5. Generate an "AI Action Plan Generator" providing personalized, actionable items based on the credit report data. The plan should include recommendations for: paying down specific cards, adding a rent tradeline, asking the bank for a credit limit increase, avoiding credit applications, and keeping old accounts open, presented in a fixed format with specific recommendations, priority, and timeline for each.  
+6. Generate a "Dispute & Removal Toolkit" including templates for a dispute letter and a goodwill removal script. These templates should be personalized with the user’s credit report information (name, address, relevant account numbers, and specific details for a potential secured loan maturity date dispute) and presented in a fixed format.  
+7. Provide a "Score Progress Tracker" output that includes a full credit summary, score simulation, action checklist, forecast chart, and dispute & goodwill letters, presented in a fixed format.  
+8. Create an "AI Reminder & Re-Evaluation Engine" that suggests when credit updates are likely to appear, reminds the user to re-check their score, and proposes a timeline for re-analysis, all in a fixed format.  
+`,
+          // Translation Rules:
+          // - Translate into ${isoToFullName(lang)} language.
+          // - Do not translate numbers, booleans, null, keys, arrays, or structural elements.
+          // - The following keys and all their nested values must remain exactly as in the input (do not translate or modify, even if they contain long text): "_id", "userId", "isEmailSent", "preferLanguage", "sessionId", "rating", "priority", "disputeLetter", "goodwillScript", "disputeToolkit".
+          // - For these immutable keys, copy everything verbatim, including any nested objects, arrays, or paragraphs.
+          // - Return only valid JSON output. Do not add explanations, comments, code blocks, or any extra formatting.
         },
         {
           role: "user",
-          content: `Please analyze and respond Extract from the following section:\n\n${fullText}. output language should be ${lang} language.`,
+          content: `Please analyze and respond Extract from the following section:\n\n${fullText}.`,
           // content: [
           //   {
           //     type: "file",
@@ -581,6 +684,7 @@ Sort the improvement areas by priority: Very High → High → Medium → Low."*
       ],
       tools,
     };
+
     const response = await client.chat.completions.create(
       isPro ? premiumReport : trialReport
     );
@@ -594,6 +698,32 @@ Sort the improvement areas by priority: Very High → High → Medium → Low."*
           message: "Credit report is empty or the uploaded file is invalid.",
         });
       } else {
+        let translatedResult;
+        if (lang !== "en") {
+          const translateObject = {
+            // summary: args.summary ?? {},
+            accountsAndBalances: args.accountsAndBalances,
+            creditEvaluation: args.creditEvaluation,
+            scoreForecast: Array.isArray(args.scoreForecast)
+              ? args.scoreForecast
+              : [],
+            scoreChanges: Array.isArray(args.scoreChanges)
+              ? args.scoreChanges
+              : [],
+            preferLanguage: lang,
+            // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
+            scoreProgress: args.scoreProgress ?? {},
+            reminders: Array.isArray(args.reminders) ? args.reminders : [],
+          };
+
+          translatedResult = await translateJSON(translateObject, lang);
+          translatedResult
+            .replace(/^```(json)?/, "")
+            .replace(/```$/, "")
+            .trim();
+          translatedResult = JSON.parse(translatedResult);
+        }
+
         // Parse the tool call arguments from the OpenAI response
         const updateFields = {
           userId,
@@ -601,9 +731,6 @@ Sort the improvement areas by priority: Very High → High → Medium → Low."*
           accountsAndBalances: Array.isArray(args.accountsAndBalances)
             ? args.accountsAndBalances
             : [],
-          // inquiries: Array.isArray(args.inquiries) ? args.inquiries : [],
-          // publicRecords: args.publicRecords ?? {},
-          // securedLoan: args.securedLoan ?? {},
           sessionId: paymentId,
           creditEvaluation: args.creditEvaluation ?? {},
           scoreForecast: Array.isArray(args.scoreForecast)
@@ -612,8 +739,6 @@ Sort the improvement areas by priority: Very High → High → Medium → Low."*
           scoreChanges: Array.isArray(args.scoreChanges)
             ? args.scoreChanges
             : [],
-          preferLanguage: lang,
-          // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
           disputeToolkit: args.disputeToolkit ?? {},
           scoreProgress: args.scoreProgress ?? {},
           reminders: Array.isArray(args.reminders) ? args.reminders : [],
@@ -628,32 +753,64 @@ Sort the improvement areas by priority: Very High → High → Medium → Low."*
 
         // Save the report to the database
         let report = await CreditReport.create(updateFields);
-        console.log("here", report);
-        report = {
-          _id: report._id,
-          userId,
-          isEmailSent: report.isEmailSent,
-          summary: report.summary ?? {},
-          accountsAndBalances: Array.isArray(report.accountsAndBalances)
-            ? report.accountsAndBalances
-            : [],
-          // inquiries: Array.isArray(args.inquiries) ? args.inquiries : [],
-          // publicRecords: args.publicRecords ?? {},
-          // securedLoan: args.securedLoan ?? {},
-          creditEvaluation: report.creditEvaluation ?? {},
-          scoreForecast: Array.isArray(report.scoreForecast)
-            ? report.scoreForecast
-            : [],
-          scoreChanges: Array.isArray(report.scoreChanges)
-            ? report.scoreChanges
-            : [],
-          preferLanguage: lang,
-          // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
-          disputeToolkit: report.disputeToolkit ?? {},
-          sessionId: report.sessionId,
-          scoreProgress: report.scoreProgress ?? {},
-          reminders: Array.isArray(report.reminders) ? report.reminders : [],
-        };
+        if (lang != "en") {
+          report = {
+            _id: report._id,
+            userId,
+            isEmailSent: report.isEmailSent,
+            summary: report.summary ?? {},
+            accountsAndBalances: Array.isArray(
+              translatedResult.accountsAndBalances
+            )
+              ? translatedResult.accountsAndBalances
+              : [],
+            // inquiries: Array.isArray(args.inquiries) ? args.inquiries : [],
+            // publicRecords: args.publicRecords ?? {},
+            // securedLoan: args.securedLoan ?? {},
+            creditEvaluation: translatedResult.creditEvaluation ?? {},
+            scoreForecast: Array.isArray(translatedResult.scoreForecast)
+              ? translatedResult.scoreForecast
+              : [],
+            scoreChanges: Array.isArray(translatedResult.scoreChanges)
+              ? translatedResult.scoreChanges
+              : [],
+            preferLanguage: lang,
+            // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
+            disputeToolkit: report.disputeToolkit ?? {},
+            sessionId: report.sessionId,
+            scoreProgress: translatedResult.scoreProgress ?? {},
+            reminders: Array.isArray(translatedResult.reminders)
+              ? translatedResult.reminders
+              : [],
+          };
+        } else {
+          report = {
+            _id: report._id,
+            userId,
+            isEmailSent: report.isEmailSent,
+            summary: report.summary ?? {},
+            accountsAndBalances: Array.isArray(report.accountsAndBalances)
+              ? report.accountsAndBalances
+              : [],
+            // inquiries: Array.isArray(args.inquiries) ? args.inquiries : [],
+            // publicRecords: args.publicRecords ?? {},
+            // securedLoan: args.securedLoan ?? {},
+            creditEvaluation: report.creditEvaluation ?? {},
+            scoreForecast: Array.isArray(report.scoreForecast)
+              ? report.scoreForecast
+              : [],
+            scoreChanges: Array.isArray(report.scoreChanges)
+              ? report.scoreChanges
+              : [],
+            preferLanguage: lang,
+            // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
+            disputeToolkit: report.disputeToolkit ?? {},
+            sessionId: report.sessionId,
+            scoreProgress: report.scoreProgress ?? {},
+            reminders: Array.isArray(report.reminders) ? report.reminders : [],
+          };
+        }
+
         // Respond with the saved report
         return res.status(200).json({
           count: Object.keys(report || 0).length,
@@ -713,39 +870,6 @@ function isToolCallEmpty(response) {
   }
 }
 
-export const isUserPremium = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    if (!userId) {
-      return res.status(400).json({ message: "Invalid request" });
-    }
-
-    const report = await CreditReport.findOne({ userId: userId }).sort({
-      createdAt: -1,
-    });
-
-    let isPro;
-    if (report?._id) {
-      const payment = await Payment.findOne({
-        reportId: report._id,
-        status: "paid",
-      });
-      isPro = !!payment;
-      return res.status(200).json({
-        ispro: isPro,
-      });
-    } else {
-      return res.status(404).json({
-        message: "User not found!",
-        ispro: false,
-      });
-    }
-  } catch (error) {
-    console.error("Error fetching isUserPremium:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
-
 export const getCreditReport = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -792,15 +916,34 @@ export const getCreditReport = async (req, res) => {
         });
       }
 
-      const prompt = `Translate this JSON to ${
-        report.preferLanguage
-      }:\n\n${JSON.stringify(
-        report,
-        null,
-        2
-      )}\n\nOnly translate the **string values**. Do **not** change any keys or structure. 
-  Return only valid JSON with no explanation, no code block, no formatting. Do **not** translate _id, userId, isEmailSent, preferLanguage, sessionId, rating, priority, disputeLetter and goodwillScript
-  .`;
+      const translateObject = {
+        // summary: args.summary ?? {},
+        accountsAndBalances: report.accountsAndBalances,
+        creditEvaluation: report.creditEvaluation,
+        scoreForecast: Array.isArray(report.scoreForecast)
+          ? report.scoreForecast
+          : [],
+        scoreChanges: Array.isArray(report.scoreChanges)
+          ? report.scoreChanges
+          : [],
+        // preferLanguage: lang,
+        // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
+        scoreProgress: report.scoreProgress ?? {},
+        reminders: Array.isArray(report.reminders) ? report.reminders : [],
+      };
+
+      const prompt = `Translate this JSON to ${report.preferLanguage}:
+
+${JSON.stringify(translateObject, null, 2)}
+
+Requirements:
+1. Do not change any keys or structure.
+2. Return only valid JSON — no explanation, no code block, no formatting.
+3. Translate only string values. Do not translate numbers or booleans.
+4. The values of the following keys must remain 100% unchanged and in their original language: 
+   "_id", "userId", "isEmailSent", "preferLanguage", "sessionId", "rating", "priority", "disputeToolkit", "disputeLetter", "goodwillScript", "impactType".
+5. If any of these keys contain nested objects or arrays, do not translate any part of their values.
+`;
 
       const completion = await client.chat.completions.create({
         model: "gpt-4o",
@@ -813,7 +956,14 @@ export const getCreditReport = async (req, res) => {
         .replace(/^```(json)?/, "")
         .replace(/```$/, "")
         .trim();
-      const translatedObject = JSON.parse(cleaned);
+      let translatedObject = JSON.parse(cleaned);
+      translatedObject._id = report._id;
+      translatedObject.userId = report.userId;
+      translatedObject.isEmailSent = report.isEmailSent;
+      translatedObject.preferLanguage = report.preferLanguage;
+      translatedObject.sessionId = report.sessionId;
+      translatedObject.summary = report.summary;
+      translatedObject.disputeToolkit = report.disputeToolkit;
 
       return res.status(200).json({
         count: translatedObject
@@ -851,17 +1001,35 @@ export const transLate = async (req, res) => {
   const report = await CreditReport.findById(object?._id).select("isEmailSent");
   const updatedUser = await CreditReport.findByIdAndUpdate(
     object?._id,
-    { targetLanguage },
+    { preferLanguage: targetLanguage },
     { new: true, runValidators: true }
   );
-  object.isEmailSent = report?.isEmailSent;
+  let modifyObject = object;
+  if (updatedUser?.sessionId) {
+    modifyObject = {
+      accountsAndBalances: object.accountsAndBalances,
+      creditEvaluation: object.creditEvaluation,
+      // disputeToolkit: object.disputeToolkit,
+      // inquiries: object.inquiries,
+      reminders: object.reminders,
+      scoreChanges: object.scoreChanges,
+      scoreForecast: object.scoreForecast,
+      scoreProgress: object.scoreProgress,
+      // summary: object.summary,
+    };
+  }
+  const prompt = `Translate this JSON to ${targetLanguage}:
 
-  const prompt = `Translate this JSON to ${targetLanguage}:\n\n${JSON.stringify(
-    object,
-    null,
-    2
-  )}\n\nOnly translate the **string values**. Do **not** change any keys or structure. 
-Return only valid JSON with no explanation, no code block, no formatting. Do **not** translate _id, userId, isEmailSent, preferLanguage, sessionId, rating, priority, disputeLetter and goodwillScript.`;
+${JSON.stringify(modifyObject, null, 2)}
+
+Requirements:
+1. Only translate string values. Do not translate numbers or booleans.
+2. Do not change any keys or structure.
+3. Return only valid JSON — no explanation, no code block, no formatting.
+4. The following keys must be treated as IMMUTABLE: "_id", "userId", "isEmailSent", "preferLanguage", "sessionId", "rating", "priority", "disputeToolkit", "disputeLetter", "goodwillScript".
+5. For these immutable keys, copy their values exactly as they are in the input, without any modification or translation, even if they contain long text or paragraphs.
+6. If an immutable key contains nested objects or arrays, none of the nested values should be translated either.
+`;
 
   try {
     const completion = await client.chat.completions.create({
@@ -876,7 +1044,15 @@ Return only valid JSON with no explanation, no code block, no formatting. Do **n
       .replace(/^```(json)?/, "")
       .replace(/```$/, "")
       .trim();
-    const translatedObject = JSON.parse(cleaned);
+    let translatedObject = JSON.parse(cleaned);
+    translatedObject.isEmailSent = updatedUser?.isEmailSent;
+    translatedObject.preferLanguage =
+      updatedUser?.preferLanguage || targetLanguage;
+    translatedObject.sessionId = updatedUser?.sessionId;
+    translatedObject.userId = updatedUser?.userId;
+    translatedObject._id = updatedUser?._id;
+    translatedObject.disputeToolkit = updatedUser?.disputeToolkit;
+    translatedObject.summary = updatedUser?.summary;
     return res.status(200).json({ translated: translatedObject });
   } catch (err) {
     console.error("Translation failed:", err);
