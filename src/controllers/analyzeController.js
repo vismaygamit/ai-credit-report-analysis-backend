@@ -111,7 +111,7 @@ Requirements:
         },
         {
           role: "user",
-          content: `Please analyze and respond Extract from the following section:\n\n${fullText} .`,
+          content: `Please analyze and respond Extract from the following section:\n\n${fullText}. Translate into ${isoToFullName(lang)} language.`,
         },
       ],
     };
@@ -195,12 +195,11 @@ export const analyze = async (req, res) => {
         sessionId: paymentId,
         status: "paid",
       });
-    
       isPro = !!payment;
     } else {
       isPro = false;
     }
-
+    
     const filePath = req.file.path;
     const fullText = await extractTextFromPDF(filePath);
 
@@ -685,11 +684,10 @@ Sort the improvement areas by priority: Very High → High → Medium → Low." 
       tools,
     };
 
-    const response = await client.chat.completions.create(
-      isPro ? premiumReport : trialReport
-    );
-
     if (isPro) {
+      const response = await client.chat.completions.create(
+        isPro ? premiumReport : trialReport
+      );
       const toolCall1 = response.choices[0].message.tool_calls?.[0];
       const args = JSON.parse(toolCall1.function.arguments);
       if (isToolCallEmpty(response) || args?.emptyResponse === true) {
@@ -710,7 +708,7 @@ Sort the improvement areas by priority: Very High → High → Medium → Low." 
             scoreChanges: Array.isArray(args.scoreChanges)
               ? args.scoreChanges
               : [],
-            preferLanguage: lang,
+            // preferLanguage: lang,
             // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
             scoreProgress: args.scoreProgress ?? {},
             reminders: Array.isArray(args.reminders) ? args.reminders : [],
@@ -774,7 +772,7 @@ Sort the improvement areas by priority: Very High → High → Medium → Low." 
             scoreChanges: Array.isArray(translatedResult.scoreChanges)
               ? translatedResult.scoreChanges
               : [],
-            preferLanguage: lang,
+            // preferLanguage: lang,
             // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
             disputeToolkit: report.disputeToolkit ?? {},
             sessionId: report.sessionId,
@@ -802,7 +800,7 @@ Sort the improvement areas by priority: Very High → High → Medium → Low." 
             scoreChanges: Array.isArray(report.scoreChanges)
               ? report.scoreChanges
               : [],
-            preferLanguage: lang,
+            // preferLanguage: lang,
             // actionPlan: Array.isArray(args.actionPlan) ? args.actionPlan : [],
             disputeToolkit: report.disputeToolkit ?? {},
             sessionId: report.sessionId,
@@ -873,6 +871,7 @@ function isToolCallEmpty(response) {
 export const getCreditReport = async (req, res) => {
   try {
     const { userId } = req.params;
+    const { language } = req.query;
 
     if (!userId) {
       return res.status(400).json({ message: "User id is required." });
@@ -884,7 +883,7 @@ export const getCreditReport = async (req, res) => {
         _id: 1,
         userId: 1,
         isEmailSent: 1,
-        preferLanguage: 1,
+        // preferLanguage: 1,
         sessionId: 1,
         summary: 1,
         accountsAndBalances: 1,
@@ -932,7 +931,7 @@ export const getCreditReport = async (req, res) => {
         reminders: Array.isArray(report.reminders) ? report.reminders : [],
       };
 
-      const prompt = `Translate this JSON to ${report.preferLanguage}:
+      const prompt = `Translate this JSON to ${isoToFullName(language)}:
 
 ${JSON.stringify(translateObject, null, 2)}
 
@@ -941,7 +940,7 @@ Requirements:
 2. Return only valid JSON — no explanation, no code block, no formatting.
 3. Translate only string values. Do not translate numbers or booleans.
 4. The values of the following keys must remain 100% unchanged and in their original language: 
-   "_id", "userId", "isEmailSent", "preferLanguage", "sessionId", "rating", "priority", "disputeToolkit", "disputeLetter", "goodwillScript", "impactType".
+   "_id", "userId", "isEmailSent", "sessionId", "rating", "priority", "disputeToolkit", "disputeLetter", "goodwillScript", "impactType".
 5. If any of these keys contain nested objects or arrays, do not translate any part of their values.
 `;
 
@@ -960,7 +959,7 @@ Requirements:
       translatedObject._id = report._id;
       translatedObject.userId = report.userId;
       translatedObject.isEmailSent = report.isEmailSent;
-      translatedObject.preferLanguage = report.preferLanguage;
+      // translatedObject.preferLanguage = report.preferLanguage;
       translatedObject.sessionId = report.sessionId;
       translatedObject.summary = report.summary;
       translatedObject.disputeToolkit = report.disputeToolkit;
@@ -999,9 +998,11 @@ export const transLate = async (req, res) => {
   }
   const { object, targetLanguage } = req.body;
   const report = await CreditReport.findById(object?._id).select("isEmailSent");
+  // console.log("report", report);
+  // return;
   const updatedUser = await CreditReport.findByIdAndUpdate(
     object?._id,
-    { preferLanguage: targetLanguage },
+    // { preferLanguage: targetLanguage },
     { new: true, runValidators: true }
   );
   let modifyObject = object;
@@ -1046,8 +1047,7 @@ Requirements:
       .trim();
     let translatedObject = JSON.parse(cleaned);
     translatedObject.isEmailSent = updatedUser?.isEmailSent;
-    translatedObject.preferLanguage =
-      updatedUser?.preferLanguage || targetLanguage;
+    translatedObject.preferLanguage = targetLanguage;
     translatedObject.sessionId = updatedUser?.sessionId;
     translatedObject.userId = updatedUser?.userId;
     translatedObject._id = updatedUser?._id;
