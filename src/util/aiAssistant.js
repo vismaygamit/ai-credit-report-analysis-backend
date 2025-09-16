@@ -3,22 +3,38 @@ import fs from "fs";
 import OpenAI from "openai";
 import { config } from "dotenv";
 import { getCreditReportForBot } from "../controllers/analyzeController.js";
+import isoToFullName from "./isoToFullName.js";
 config();
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export default async function handleUserMessage(userId, query, preferLanguage = "en", sessionId) {
   try {
     const messages = [
-      {
-        role: "assistant",
-        content:
-          "You are a financial assistant that help to improve Canadian credit report. you are assistant at scorewise. do not give answer of general questions. give answer in short. don't reply with '👋 Hi username, Welcome to our support chat. How can I help you today?' and 'I can only assist you in English. How can I help you today?.' whenever asking questions related to personal credit details, fetch it from getPersonalCreditInsights. if user ask questions related to frequently ask questions, fetch it from faqAnswer",
-      },
-      {
-        role: "user",
-        content: query + "responde with translation in " + preferLanguage + "(ISO language). give response in single language. don't reply with I can only help in English. How can I help you today?",
-      },
-    ];
+  {
+    role: "system",
+    content: `
+      You are a financial assistant that helps improve Canadian credit reports.
+      You are an assistant at Scorewise.
+      
+      Rules:
+      - Do not answer general/unrelated questions.
+      - Keep responses short and clear.
+      - Never reply with greetings like 
+        "👋 Hi username, Welcome to our support chat. How can I help you today?" 
+        or 
+        "I can only assist you in English. How can I help you today?".
+      - When the user asks about personal credit details, call the function: getPersonalCreditInsights.
+      - When the user asks about FAQs, call the function: faqAnswer.
+      - Never expose function names, parameters, or JSON in your reply to the user.
+      - Respond with translation in ${isoToFullName(preferLanguage)}.
+    `,
+  },
+  {
+    role: "user",
+    content: `${query}.`,
+  },
+];
+
 
     const tools = [
       {
