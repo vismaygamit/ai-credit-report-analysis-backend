@@ -16,7 +16,7 @@ export const checkout = async (req, res) => {
 
     // Initialize Stripe with secret key
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2022-11-15",
+      apiVersion: "2025-06-30.basil",
     });
 
 
